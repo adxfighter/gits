@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -16,22 +17,33 @@ import ru.gits.sandbox.SandboxConfig;
 import ru.gits.sandbox.SandboxExecutor;
 import ru.gits.taskbank.TaskBankLayout.VariantLocation;
 import ru.gits.taskbank.check.SchemaCheck;
+import ru.gits.taskbank.load.LoadCommand;
+import ru.gits.taskbank.load.TaskBankLoader;
 
-/** Task bank tool: {@code validate}, {@code verify-hashes} and {@code stats}; {@code load} follows in P06. */
+/** Task bank tool: {@code validate}, {@code verify-hashes}, {@code stats} and {@code load}. */
 public final class TaskBankCli {
 
     static final int EXIT_OK = 0;
     static final int EXIT_FAILED = 1;
     static final int EXIT_USAGE = 64;
+    /** The command could not run at all (no database, bank directory missing), as opposed to skipped variants. */
+    static final int EXIT_ERROR = 2;
+    /**
+     * Logging config of the CLI only: it is not named logback.xml, because gits-api has this jar on its classpath
+     * and must keep its own logging.
+     */
+    public static final String CLI_LOGGING_CONFIG = "logback-taskbank-cli.xml";
 
     private TaskBankCli() {
     }
 
     public static void main(String[] args) {
+        System.setProperty("logback.configurationFile", CLI_LOGGING_CONFIG);
         System.exit(run(args, System.out));
     }
 
-    static int run(String[] args, PrintStream out) {
+    /** Runs a command and returns its exit code; used by {@link #main} and by tests that embed the CLI. */
+    public static int run(String[] args, PrintStream out) {
         if (args.length == 0 || "help".equals(args[0])) {
             printUsage(out);
             return args.length == 0 ? EXIT_USAGE : EXIT_OK;
@@ -42,6 +54,7 @@ public final class TaskBankCli {
                 case "validate" -> validate(options, out);
                 case "verify-hashes" -> verifyHashes(options, out);
                 case "stats" -> stats(options, out);
+                case "load" -> load(options, out);
                 default -> {
                     out.println("Unknown command: " + options.command());
                     printUsage(out);
@@ -196,6 +209,17 @@ public final class TaskBankCli {
         return result;
     }
 
+    /** EXIT_OK — everything loaded, EXIT_FAILED — some variants skipped, EXIT_ERROR — nothing could be loaded. */
+    private static int load(Options options, PrintStream out) {
+        try {
+            var summary = LoadCommand.run(options.root(), Set.copyOf(options.exclude()), out);
+            return summary.skipped() == 0 ? EXIT_OK : EXIT_FAILED;
+        } catch (RuntimeException e) {
+            out.println("Загрузка не выполнена: " + rootMessage(e));
+            return EXIT_ERROR;
+        }
+    }
+
     private static List<VariantLocation> selected(TaskBankLayout layout, Optional<String> variant) {
         return layout.variants().stream()
                 .filter(v -> variant.isEmpty() || v.code().equals(variant.get())
@@ -212,11 +236,14 @@ public final class TaskBankCli {
         out.println("  gits-taskbank verify-hashes <tasks/java> [--variant ...]");
         out.println("  gits-taskbank stats <tasks/java> [--catalog tasks/java/CATALOG.md [--check]]");
         out.println("                         (--check: fail if the catalog is out of date, do not write it)");
+        out.println("  gits-taskbank load <tasks/java> [--exclude T00,...]  (database from SPRING_DATASOURCE_*;");
+        out.println("                         the format example T00 is excluded by default, --exclude '' loads it)");
         out.println("  gits-taskbank help");
     }
 
     record Options(String command, Path root, Optional<String> variant, Optional<Integer> runs, int parallel,
-                   String image, String runtime, boolean schemaOnly, Optional<Path> catalog, boolean check) {
+                   String image, String runtime, boolean schemaOnly, Optional<Path> catalog, boolean check,
+                   List<String> exclude) {
 
         static Options parse(String[] args) {
             if (args.length < 2) {
@@ -230,6 +257,7 @@ public final class TaskBankCli {
             boolean schemaOnly = false;
             Path catalog = null;
             boolean check = false;
+            List<String> exclude = List.of(TaskBankLoader.EXAMPLE_TEMPLATE);
             List<String> rest = new ArrayList<>(List.of(args).subList(2, args.length));
             for (int i = 0; i < rest.size(); i++) {
                 String option = rest.get(i);
@@ -252,6 +280,8 @@ public final class TaskBankCli {
                     case "--image" -> image = value;
                     case "--runtime" -> runtime = value;
                     case "--catalog" -> catalog = Path.of(value);
+                    case "--exclude" -> exclude = List.of(value.split(",")).stream()
+                            .map(String::strip).filter(code -> !code.isEmpty()).toList();
                     default -> throw new IllegalArgumentException("Неизвестный параметр: " + option);
                 }
             }
@@ -266,7 +296,7 @@ public final class TaskBankCli {
                 throw new IllegalArgumentException("stats описывает весь банк, --variant не применим");
             }
             return new Options(args[0], Path.of(args[1]), Optional.ofNullable(variant), Optional.ofNullable(runs),
-                    parallel, image, runtime, schemaOnly, Optional.ofNullable(catalog), check);
+                    parallel, image, runtime, schemaOnly, Optional.ofNullable(catalog), check, exclude);
         }
 
         private static int positive(String option, String value) {

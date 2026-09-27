@@ -13,4 +13,6 @@ public interface TaskVariantRepository extends JpaRepository<TaskVariant, UUID> 
     Optional<TaskVariant> findByCode(String code);
 
     List<TaskVariant> findByKindAndLevelAndStatus(TaskKind kind, Level level, VariantStatus status);
+
+    List<TaskVariant> findByStatus(VariantStatus status);
 }

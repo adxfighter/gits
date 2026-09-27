@@ -49,7 +49,7 @@ tasks/
 | `rubric` | 3–6 пунктов для ревьюера |
 
 ## Проверки валидатора
-`java -jar backend/gits-taskbank/target/gits-taskbank.jar validate tasks/java [--variant T01-v03] [--runs N] [--parallel N]`, либо `scripts/validate-tasks.sh` / `scripts/validate-tasks.ps1`.
+`java -jar backend/gits-taskbank/target/gits-taskbank-exec.jar validate tasks/java [--variant T01-v03] [--runs N] [--parallel N]`, либо `scripts/validate-tasks.sh` / `scripts/validate-tasks.ps1`.
 
 | № | Проверка | Условие |
 |---|---|---|
@@ -69,6 +69,13 @@ tasks/
 `java -jar … verify-hashes tasks/java` быстро проверяет без песочницы, что каждый `validation.json` соответствует текущим файлам (так делает CI и загрузчик в БД).
 
 `java -jar … stats tasks/java` печатает распределение вариантов по уровням, шаблонам, компетенциям и доменам. С `--catalog tasks/java/CATALOG.md` команда пересобирает каталог по файлам банка (task.yaml, template.yaml, тесты, validation.json, оценки из `REVIEW.md`); с `--check` только сверяет каталог и завершается ошибкой, если он устарел (так делает CI). Каталог не редактируется вручную.
+
+## Загрузка в базу данных
+Банк загружается в PostgreSQL автоматически при старте api: каталог `tasks/` смонтирован в контейнер только для чтения, путь — `TASKBANK_PATH`. Вручную: `java -jar backend/gits-taskbank/target/gits-taskbank-exec.jar load tasks/java` (подключение — через `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`; схема должна быть уже создана api).
+- Загружаются только варианты с `validation.json` = PASSED и совпадающей контрольной суммой; остальные пропускаются с предупреждением, их версия в БД не меняется.
+- Повторная загрузка без изменений ничего не пишет; изменённый вариант обновляется; вариант, удалённый из банка, помечается DISABLED.
+- Шаблон T00 (образец формата) не загружается; у CLI это меняет `--exclude`.
+- Итог выводится в лог: загружено, обновлено, без изменений, пропущено, отключено. Подробности — `docs/adr/0005-taskbank-loading.md`.
 
 ## Шаблоны и план
 - `tasks/competencies.yaml` — матрица компетенций профиля с ожиданиями по уровням.

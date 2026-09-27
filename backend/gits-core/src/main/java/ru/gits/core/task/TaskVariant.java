@@ -105,6 +105,30 @@ public class TaskVariant extends BaseEntity {
         this.updatedAt = now;
     }
 
+    /**
+     * Replaces the metadata of a re-validated variant and makes it selectable again. The caller removes the old
+     * files with {@link #clearFiles()} and flushes before adding the new ones: (variant, kind, path) is unique.
+     */
+    public void replaceContent(TaskTemplate template, TaskKind kind, Level level, String domain, String difficultyParams,
+                               String statementMd, int timeLimitMin, String contentHash, String validationReport,
+                               Instant now) {
+        this.template = template;
+        this.kind = kind;
+        this.level = level;
+        this.domain = domain;
+        this.difficultyParams = difficultyParams;
+        this.statementMd = statementMd;
+        this.timeLimitMin = timeLimitMin;
+        this.contentHash = contentHash;
+        this.validationReport = validationReport;
+        this.status = VariantStatus.VALIDATED;
+        this.updatedAt = now;
+    }
+
+    public void clearFiles() {
+        files.clear();
+    }
+
     public TaskTemplate getTemplate() {
         return template;
     }

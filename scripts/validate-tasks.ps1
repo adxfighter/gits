@@ -10,7 +10,7 @@ if (-not $env:JAVA_HOME -and (Test-Path "$env:USERPROFILE\.jdks")) {
 if ($env:JAVA_HOME) { $env:Path = "$env:JAVA_HOME\bin;$env:Path" }
 
 $root = Split-Path -Parent $PSScriptRoot
-$jar = Join-Path $root 'backend\gits-taskbank\target\gits-taskbank.jar'
+$jar = Join-Path $root 'backend\gits-taskbank\target\gits-taskbank-exec.jar'
 if ($env:REBUILD -eq '1' -or -not (Test-Path $jar)) {
     Push-Location (Join-Path $root 'backend')
     try {

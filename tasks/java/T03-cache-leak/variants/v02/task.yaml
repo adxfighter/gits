@@ -1,0 +1,24 @@
+code: T03-v02
+template: T03
+kind: task
+level: junior
+domain: медицина
+time_limit_min: 20
+difficulty_params:
+  eviction: capacity
+  ttl: false
+  loc: 60
+editable:
+  - src/main/java/ru/gits/task/medicine/t03/PatientCardCache.java
+readonly:
+  - src/main/java/ru/gits/task/medicine/t03/PatientCard.java
+  - src/main/java/ru/gits/task/medicine/t03/CardRegistry.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Вместо очистки всего кэша вытесняется одна запись, дольше всех не использовавшаяся
+  - Размер кэша не превышает ёмкость
+  - Часто запрашиваемые карточки остаются в кэше
+  - Обновление карточки (refresh) работает как раньше

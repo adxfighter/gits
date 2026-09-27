@@ -1,0 +1,23 @@
+code: T03-v01
+template: T03
+kind: task
+level: junior
+domain: интернет-магазин
+time_limit_min: 20
+difficulty_params:
+  eviction: capacity
+  ttl: false
+  loc: 60
+editable:
+  - src/main/java/ru/gits/task/shop/t03/PriceCache.java
+readonly:
+  - src/main/java/ru/gits/task/shop/t03/PriceSource.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Размер кэша ограничен заданной ёмкостью
+  - При переполнении вытесняется запись, которая дольше всех не использовалась (LRU)
+  - Цена загружается из источника один раз, пока запись в кэше
+  - Публичный API не изменён, некорректная ёмкость по-прежнему отклоняется

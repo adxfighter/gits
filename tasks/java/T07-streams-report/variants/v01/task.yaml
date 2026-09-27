@@ -1,0 +1,24 @@
+code: T07-v01
+template: T07
+kind: task
+level: junior
+domain: образование
+time_limit_min: 20
+difficulty_params:
+  pipeline_ops: 3
+  edge_cases: 2
+editable:
+  - src/main/java/ru/gits/task/education/t07/CourseReport.java
+readonly:
+  - src/main/java/ru/gits/task/education/t07/Course.java
+  - src/main/java/ru/gits/task/education/t07/Grade.java
+  - src/main/java/ru/gits/task/education/t07/CourseLine.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Оценки группируются по коду курса, а не по названию
+  - Курс без оценок попадает в отчёт с нулём оценок и пустым средним без исключения
+  - Не используется getAsDouble/get без проверки наличия значения
+  - Порядок строк по коду курса сохранён

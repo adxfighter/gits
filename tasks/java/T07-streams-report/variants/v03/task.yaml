@@ -1,0 +1,23 @@
+code: T07-v03
+template: T07
+kind: task
+level: middle
+domain: банк
+time_limit_min: 30
+difficulty_params:
+  pipeline_ops: 5
+  edge_cases: 3
+editable:
+  - src/main/java/ru/gits/task/bank/t07/MonthlyStatement.java
+readonly:
+  - src/main/java/ru/gits/task/bank/t07/Operation.java
+  - src/main/java/ru/gits/task/bank/t07/MonthLine.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Месяцы в отчёте идут в хронологическом порядке, в том числе через границу года
+  - Месяц без операций и месяц без списаний не приводят к исключению
+  - Крупнейшее списание возвращается как Optional, без get() на пустом Optional
+  - Сравнение сумм BigDecimal не зависит от scale

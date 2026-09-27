@@ -1,0 +1,25 @@
+code: T02-v04
+template: T02
+kind: task
+level: senior
+domain: медицина
+time_limit_min: 30
+difficulty_params:
+  resources: 5
+  call_depth: 3
+  nested_locks: true
+editable:
+  - src/main/java/ru/gits/task/medicine/t02/Ward.java
+  - src/main/java/ru/gits/task/medicine/t02/BedManagementService.java
+readonly:
+  - src/main/java/ru/gits/task/medicine/t02/Patient.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Найдены все места захвата блокировок, включая вложенный вызов admit внутри transferTo
+  - Все операции с несколькими отделениями блокируют их в одном глобальном порядке (по номеру отделения)
+  - Групповые операции (перераспределение, сводка) не зависят от порядка элементов в переданном списке
+  - Перевод и перераспределение атомарны, вместимость отделений не нарушается
+  - Протокол блокировок описан в коде (комментарии/названия методов)

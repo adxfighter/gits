@@ -1,0 +1,23 @@
+code: T02-v02
+template: T02
+kind: task
+level: middle
+domain: логистика
+time_limit_min: 25
+difficulty_params:
+  resources: 3
+  call_depth: 1
+  nested_locks: false
+editable:
+  - src/main/java/ru/gits/task/logistics/t02/StockMovementService.java
+readonly:
+  - src/main/java/ru/gits/task/logistics/t02/Warehouse.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Во всех методах, захватывающих два склада, используется один и тот же порядок захвата
+  - Порядок определён по устойчивому признаку (код склада), а не по порядку аргументов
+  - Перемещение и выравнивание остатков атомарны, общее количество товара сохраняется
+  - Логика выравнивания остатков не изменилась

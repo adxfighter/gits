@@ -1,0 +1,23 @@
+code: T02-v01
+template: T02
+kind: task
+level: junior
+domain: банк
+time_limit_min: 20
+difficulty_params:
+  resources: 2
+  call_depth: 1
+  nested_locks: false
+editable:
+  - src/main/java/ru/gits/task/bank/t02/TransferService.java
+readonly:
+  - src/main/java/ru/gits/task/bank/t02/Account.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Блокировки счетов захватываются в едином порядке (например, по идентификатору)
+  - Перевод остаётся атомарным — списание и зачисление под обеими блокировками
+  - Проверки аргументов и недостатка средств работают как раньше
+  - Нет глобальной блокировки, сериализующей все переводы банка

@@ -1,9 +1,12 @@
 package ru.gits.core.run;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 public interface RunJobRepository extends JpaRepository<RunJob, UUID> {
@@ -20,6 +23,21 @@ public interface RunJobRepository extends JpaRepository<RunJob, UUID> {
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
     List<RunJob> claimQueued(int limit);
+
+    /** Loads a job with its task variant and all variant files (including hidden tests) in one query. */
+    @Query("""
+            select j from RunJob j
+            join fetch j.sessionTask st
+            join fetch st.variant v
+            left join fetch v.files
+            where j.id = :id
+            """)
+    Optional<RunJob> findWithTaskFiles(UUID id);
+
+    /** Bulk status change, e.g. RUNNING -> ERROR for jobs interrupted by a runner restart. */
+    @Modifying
+    @Query("update RunJob j set j.status = :to, j.finishedAt = :now where j.status = :from")
+    int changeStatus(RunStatus from, RunStatus to, Instant now);
 
     long countBySessionTaskId(UUID sessionTaskId);
 

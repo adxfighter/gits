@@ -1,0 +1,25 @@
+code: T04-v04
+template: T04
+kind: task
+level: senior
+domain: телеком
+time_limit_min: 30
+difficulty_params:
+  leak_sources: 2
+  thread_pool: true
+  nested_context: false
+editable:
+  - src/main/java/ru/gits/task/telecom/t04/CallCharger.java
+readonly:
+  - src/main/java/ru/gits/task/telecom/t04/TariffCatalog.java
+  - src/main/java/ru/gits/task/telecom/t04/BillingContext.java
+  - src/main/java/ru/gits/task/telecom/t04/CallRecord.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Найдены оба источника утечки — слушатель тарифов и контекст биллинга
+  - Освобождение ресурсов выполняется в finally в порядке, обратном захвату
+  - Исключение тарификации пробрасывается вызывающему коду без подмены
+  - Перерасчёт при смене тарифа во время звонка работает как раньше

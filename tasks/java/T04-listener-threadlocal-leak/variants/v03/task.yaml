@@ -1,0 +1,24 @@
+code: T04-v03
+template: T04
+kind: task
+level: middle
+domain: банк
+time_limit_min: 25
+difficulty_params:
+  leak_sources: 1
+  thread_pool: true
+  nested_context: false
+editable:
+  - src/main/java/ru/gits/task/bank/t04/RequestProcessor.java
+readonly:
+  - src/main/java/ru/gits/task/bank/t04/SecurityContext.java
+  - src/main/java/ru/gits/task/bank/t04/BankRequest.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Контекст очищается в finally — и при успешной обработке, и при исключении
+  - Анонимный запрос в переиспользованном потоке не видит предыдущего клиента
+  - Исключение обработчика по-прежнему пробрасывается вызывающему коду
+  - Публичный API и формат результата не изменены

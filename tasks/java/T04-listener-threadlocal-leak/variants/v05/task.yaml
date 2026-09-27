@@ -1,0 +1,24 @@
+code: T04-v05
+template: T04
+kind: task
+level: senior
+domain: медицина
+time_limit_min: 30
+difficulty_params:
+  leak_sources: 1
+  thread_pool: true
+  nested_context: true
+editable:
+  - src/main/java/ru/gits/task/medicine/t04/DoctorContext.java
+readonly:
+  - src/main/java/ru/gits/task/medicine/t04/Doctor.java
+  - src/main/java/ru/gits/task/medicine/t04/ConsultationService.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - При выходе из runAs восстанавливается предыдущий контекст, а не удаляется любой
+  - Восстановление выполняется в finally, в том числе при исключении
+  - Вне runAs поток не удерживает контекст (remove, а не set(null) для пулов)
+  - Публичный API DoctorContext не изменён

@@ -67,6 +67,9 @@ jobs:
         run: |
           (cd backend && mvn -B -q -pl gits-taskbank -am package -DskipTests)
           java -jar backend/gits-taskbank/target/gits-taskbank.jar verify-hashes tasks/java
+      # Before re-validation: it rewrites validation.json (run times), the catalog is built from the committed files
+      - name: CATALOG.md is generated from the current task files
+        run: java -jar backend/gits-taskbank/target/gits-taskbank.jar stats tasks/java --catalog tasks/java/CATALOG.md --check
       - name: Re-validate changed variants in the sandbox
         run: bash scripts/validate-tasks.sh --changed-since origin/${{ github.base_ref || 'main' }}
 

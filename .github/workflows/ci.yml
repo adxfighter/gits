@@ -43,6 +43,13 @@ jobs:
           npm test
           npm run build
 
+  sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build sandbox image and run hostile-code selftest
+        run: bash scripts/sandbox-selftest.sh
+
   images:
     runs-on: ubuntu-latest
     needs: backend

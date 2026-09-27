@@ -55,6 +55,9 @@ public final class TaskBankCli {
 
     private static int validate(Options options, PrintStream out) {
         var layout = new TaskBankLayout(options.root());
+        if (options.schemaOnly()) {
+            return validateSchemas(layout, options, out);
+        }
         List<VariantLocation> variants = selected(layout, options.variant());
         if (variants.isEmpty()) {
             out.println("Варианты не найдены: " + options.root() + options.variant().map(v -> " / " + v).orElse(""));
@@ -86,6 +89,39 @@ public final class TaskBankCli {
         return failed == 0 ? EXIT_OK : EXIT_FAILED;
     }
 
+    /** template.yaml of every template (even without variants) and task.yaml of every variant; no sandbox. */
+    private static int validateSchemas(TaskBankLayout layout, Options options, PrintStream out) {
+        var schema = new SchemaCheck(layout.schemaDirectory());
+        int problems = 0;
+        int checked = 0;
+        for (Path templateDir : layout.templates()) {
+            String code = templateDir.getFileName().toString().split("-", 2)[0];
+            if (options.variant().isPresent() && !options.variant().get().startsWith(code)) {
+                continue;
+            }
+            checked++;
+            String result = schema.validateTemplate(SchemaCheck.readYaml(templateDir.resolve("template.yaml")));
+            String templateCode = SchemaCheck.readYaml(templateDir.resolve("template.yaml")).path("code").asText();
+            if (!templateDir.getFileName().toString().startsWith(templateCode + "-")) {
+                result = (result.isEmpty() ? "" : result + "; ") + "каталог должен начинаться с " + templateCode + "-";
+            }
+            if (!result.isEmpty()) {
+                problems++;
+                out.println("✗ " + templateDir.getFileName() + "/template.yaml: " + result);
+            }
+        }
+        for (VariantLocation location : selected(layout, options.variant())) {
+            checked++;
+            String result = schema.validateTask(SchemaCheck.readYaml(location.variantDir().resolve("task.yaml")));
+            if (!result.isEmpty()) {
+                problems++;
+                out.println("✗ " + location.code() + "/task.yaml: " + result);
+            }
+        }
+        out.printf("schema-only: проверено файлов %d, с ошибками %d%n", checked, problems);
+        return problems == 0 ? EXIT_OK : EXIT_FAILED;
+    }
+
     private static int verifyHashes(Options options, PrintStream out) {
         var layout = new TaskBankLayout(options.root());
         List<VariantLocation> variants = selected(layout, options.variant());
@@ -112,13 +148,14 @@ public final class TaskBankCli {
         out.println(GitsVersion.display() + " task bank");
         out.println("Usage:");
         out.println("  gits-taskbank validate <tasks/java> [--variant T01-v03 | --variant T01] [--runs N] [--parallel N]");
+        out.println("                         [--schema-only]  (only template.yaml/task.yaml, no sandbox)");
         out.println("                         [--image gits-sandbox-java:local] [--runtime runc]");
         out.println("  gits-taskbank verify-hashes <tasks/java> [--variant ...]");
         out.println("  gits-taskbank help");
     }
 
     record Options(String command, Path root, Optional<String> variant, Optional<Integer> runs, int parallel,
-                   String image, String runtime) {
+                   String image, String runtime, boolean schemaOnly) {
 
         static Options parse(String[] args) {
             if (args.length < 2) {
@@ -129,9 +166,14 @@ public final class TaskBankCli {
             int parallel = 4;
             String image = "gits-sandbox-java:local";
             String runtime = "runc";
+            boolean schemaOnly = false;
             List<String> rest = new ArrayList<>(List.of(args).subList(2, args.length));
             for (int i = 0; i < rest.size(); i++) {
                 String option = rest.get(i);
+                if (option.equals("--schema-only")) {
+                    schemaOnly = true;
+                    continue;
+                }
                 if (i + 1 >= rest.size()) {
                     throw new IllegalArgumentException("Нет значения для " + option);
                 }
@@ -146,7 +188,7 @@ public final class TaskBankCli {
                 }
             }
             return new Options(args[0], Path.of(args[1]), Optional.ofNullable(variant), Optional.ofNullable(runs),
-                    parallel, image, runtime);
+                    parallel, image, runtime, schemaOnly);
         }
 
         private static int positive(String option, String value) {

@@ -33,6 +33,11 @@ public final class TaskBankLayout {
         return root.toAbsolutePath().getParent().resolve("schema");
     }
 
+    /** Template directories that contain a template.yaml, with or without variants. */
+    public List<Path> templates() {
+        return children(root).stream().filter(dir -> Files.isRegularFile(dir.resolve("template.yaml"))).toList();
+    }
+
     public List<VariantLocation> variants() {
         List<VariantLocation> result = new ArrayList<>();
         for (Path templateDir : children(root)) {

@@ -94,7 +94,7 @@ public class CandidateCookieService {
                 return Optional.empty();
             }
             String[] parts = new String(DECODER.decode(encoded), StandardCharsets.UTF_8).split(":");
-            if (parts.length != 3 || Instant.ofEpochSecond(Long.parseLong(parts[2])).isBefore(clock.instant())) {
+            if (parts.length != 3 || !Instant.ofEpochSecond(Long.parseLong(parts[2])).isAfter(clock.instant())) {
                 return Optional.empty();
             }
             return Optional.of(new CandidatePrincipal(UUID.fromString(parts[0]), Integer.parseInt(parts[1])));

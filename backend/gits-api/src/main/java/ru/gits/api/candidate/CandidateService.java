@@ -49,11 +49,17 @@ public class CandidateService {
             case COMPLETED -> throw gone("Оценка по этой ссылке уже пройдена");
             case REVOKED -> throw gone("Приглашение отозвано работодателем");
             case EXPIRED -> throw gone("Срок действия ссылки истёк");
-            case CREATED, STARTED -> {
-                if (invite.getStatus() == InviteStatus.CREATED && invite.isExpired(clock.instant())) {
+            case CREATED -> {
+                if (invite.isExpired(clock.instant())) {
                     invite.markExpired();
                     throw gone("Срок действия ссылки истёк");
                 }
+                // First entry: the employer sees that the link was opened. Re-entry stays possible
+                // (page reload, another device) until the assessment is completed.
+                invite.markStarted(clock.instant());
+            }
+            case STARTED -> {
+                // already opened before; nothing to update
             }
         }
         boolean consented = consents.existsByInviteIdAndVersion(invite.getId(), ConsentText.CURRENT_VERSION);

@@ -79,6 +79,32 @@ class CandidateIntegrationTest extends ApiTest {
     }
 
     @Test
+    void firstEntryMarksInviteStartedAndKeepsFirstEntryTime() throws Exception {
+        String token = createInviteToken(login(accounts.employer()));
+
+        enter(token).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("STARTED"));
+        Instant firstEntry = invites.findByTokenHash(Hashing.sha256Hex(token)).orElseThrow().getUsedAt();
+        enter(token).andExpect(status().isOk());
+
+        var invite = invites.findByTokenHash(Hashing.sha256Hex(token)).orElseThrow();
+        assertThat(invite.getStatus()).isEqualTo(InviteStatus.STARTED);
+        assertThat(firstEntry).isNotNull();
+        assertThat(invite.getUsedAt()).isEqualTo(firstEntry);
+    }
+
+    @Test
+    void revokingInviteEndsAccessForIssuedCookies() throws Exception {
+        String token = createInviteToken(login(accounts.employer()));
+        Cookie cookie = candidateCookie(enter(token).andReturn().getResponse());
+        mvc.perform(get("/candidate/me").cookie(cookie)).andExpect(status().isOk());
+
+        tx.executeWithoutResult(s -> invites.findByTokenHash(Hashing.sha256Hex(token)).orElseThrow().revoke());
+
+        mvc.perform(get("/candidate/me").cookie(cookie)).andExpect(status().isUnauthorized());
+        enter(token).andExpect(status().isGone());
+    }
+
+    @Test
     void unknownTokenIsNotFound() throws Exception {
         enter(Hashing.newToken()).andExpect(status().isNotFound());
     }

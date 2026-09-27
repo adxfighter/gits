@@ -27,6 +27,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import ru.gits.api.security.CandidateCookieFilter;
 import ru.gits.api.security.CandidateCookieService;
 import ru.gits.api.security.SpaCsrfTokenRequestHandler;
+import ru.gits.core.invite.InviteRepository;
 
 /**
  * Two filter chains: candidates ({@code /candidate/**}, stateless signed cookie) and everyone else
@@ -63,11 +64,11 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     SecurityFilterChain candidateChain(HttpSecurity http, CandidateCookieService cookies,
-                                       CookieCsrfTokenRepository csrf) throws Exception {
+                                       CookieCsrfTokenRepository csrf, InviteRepository invites) throws Exception {
         http.securityMatcher("/candidate/**")
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(c -> c.csrfTokenRepository(csrf).csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
-                .addFilterBefore(new CandidateCookieFilter(cookies), BasicAuthenticationFilter.class)
+                .addFilterBefore(new CandidateCookieFilter(cookies, invites), BasicAuthenticationFilter.class)
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(HttpMethod.POST, "/candidate/enter").permitAll()
                         .requestMatchers("/candidate/me", "/candidate/consent")

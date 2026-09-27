@@ -32,6 +32,8 @@ services:
       DEMO_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL}
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD}
       TASKBANK_PATH: ${TASKBANK_PATH}
+      GITS_CANDIDATE_SECRET: ${GITS_CANDIDATE_SECRET:-}
+      GITS_PUBLIC_BASE_URL: ${GITS_PUBLIC_BASE_URL:-http://localhost:8080}
     volumes:
       - ./tasks:${TASKBANK_PATH}:ro
     depends_on:

@@ -1,0 +1,23 @@
+code: T06-v05
+template: T06
+kind: task
+level: middle
+domain: логистика
+time_limit_min: 20
+difficulty_params:
+  key_fields: 3
+  inheritance: false
+  defect_type: inconsistent_fields
+editable:
+  - src/main/java/ru/gits/task/logistics/t06/ParcelRef.java
+readonly:
+  - src/main/java/ru/gits/task/logistics/t06/ScanJournal.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - hashCode строится только из полей, участвующих в equals
+  - Версия этикетки не участвует ни в equals, ни в hashCode, но сохраняется в объекте
+  - Смысл равенства (перевозчик, трек-номер, хаб отправки) не изменён
+  - Объяснено, почему лишнее поле в hashCode ломает поиск в HashMap

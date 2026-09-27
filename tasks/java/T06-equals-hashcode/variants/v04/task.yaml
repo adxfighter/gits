@@ -1,0 +1,24 @@
+code: T06-v04
+template: T06
+kind: task
+level: middle
+domain: банк
+time_limit_min: 25
+difficulty_params:
+  key_fields: 2
+  inheritance: true
+  defect_type: asymmetric_equals
+editable:
+  - src/main/java/ru/gits/task/bank/t06/Account.java
+  - src/main/java/ru/gits/task/bank/t06/CurrencyAccount.java
+readonly:
+  - src/main/java/ru/gits/task/bank/t06/MonitoringList.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - equals симметричен и транзитивен для счёта и валютного счёта
+  - Сравнение учитывает класс (getClass или canEqual), а не только instanceof
+  - Валюта участвует в equals и hashCode валютного счёта
+  - Результат работы с множеством не зависит от порядка добавления

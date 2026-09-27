@@ -1,5 +1,11 @@
-# Placeholder image until the Angular app is generated (prompt P00, frontend part / P10).
-# It will become a multi-stage build: node (ng build) -> nginx.
+# syntax=docker/dockerfile:1.7
+FROM node:24-alpine AS build
+WORKDIR /src
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+COPY . .
+RUN npm run build
+
 FROM nginx:1.28-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY placeholder/ /usr/share/nginx/html/
+COPY --from=build /src/dist/gits-web/browser/ /usr/share/nginx/html/

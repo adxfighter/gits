@@ -7,7 +7,7 @@
 ## Требования
 - Docker Desktop (Windows: бэкенд WSL2) или Docker Engine с Compose v2 (Linux).
 - 16 ГБ RAM рекомендуется, ~5 ГБ диска под образы.
-- Для разработки: JDK 21, Maven 3.9+, Node.js 22 LTS.
+- Для разработки: JDK 21, Maven 3.9+, Node.js 24 LTS.
 
 ## Быстрый старт
 1. Скопируйте `.env.example` в `.env` и задайте свои локальные значения паролей (скрипт запуска создаст `.env` сам, если его нет).
@@ -37,5 +37,15 @@ mvn verify -Pdocker-tests  # плюс тесты, которым нужен Dock
 ## Статус
 | Этап | Состояние |
 |---|---|
-| P00 Каркас репозитория | backend, Docker Compose, CI; Angular-приложение будет создано после установки Node.js |
+| P00 Каркас репозитория | готово: backend, Angular 21, Docker Compose, CI |
 | P01–P17, P20–P24 | в работе |
+
+### Frontend
+```bash
+cd frontend
+npm ci
+npm start          # http://localhost:4200, /api проксируется на http://localhost:8080 (нужен запущенный стек)
+npm run lint
+npm test
+npm run build
+```

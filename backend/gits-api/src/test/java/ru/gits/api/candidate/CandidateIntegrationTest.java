@@ -63,7 +63,7 @@ class CandidateIntegrationTest extends ApiTest {
                 .andReturn().getResponse();
         Cookie withConsent = candidateCookie(accepted);
 
-        // Past the security layer now: the endpoint itself does not exist yet (added in P07)
+        // Past the security layer now: no session has been started yet
         mvc.perform(get("/candidate/session").cookie(withConsent)).andExpect(status().isNotFound());
         UUIDHolder invite = inviteFor(token);
         assertThat(consents.existsByInviteIdAndVersion(invite.id(), 1)).isTrue();

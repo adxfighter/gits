@@ -3,10 +3,13 @@
 # Output protocol (parsed by gits-runner):
 #   ===GITS-COMPILE-ERROR===                     then javac output, exit code 2
 #   ===GITS-OUTPUT-BEGIN=== ... ===GITS-OUTPUT-END===   test console output (<= 64 KB)
-#   ===GITS-REPORT-BEGIN=== ... ===GITS-REPORT-END===   JUnit XML report
+#   ===GITS-REPORT-BEGIN=== ... ===GITS-REPORT-END===   JUnit XML report, base64 (<= 1 MB before encoding)
+# The report is base64-encoded because test failure messages inside it are candidate-controlled and
+# could contain protocol markers; base64 output cannot.
 set -eu
 
 LIMIT=65536
+REPORT_LIMIT=1048576
 SRC=/work/src
 OUT=/work/out
 REPORTS=/work/reports
@@ -59,6 +62,9 @@ echo
 echo "===GITS-OUTPUT-END==="
 echo "===GITS-REPORT-BEGIN==="
 if [ -f "$REPORTS/TEST-junit-jupiter.xml" ]; then
-  cat "$REPORTS/TEST-junit-jupiter.xml"
+  if [ "$(wc -c < "$REPORTS/TEST-junit-jupiter.xml")" -le "$REPORT_LIMIT" ]; then
+    base64 "$REPORTS/TEST-junit-jupiter.xml" | tr -d '\n'
+    echo
+  fi
 fi
 echo "===GITS-REPORT-END==="

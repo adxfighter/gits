@@ -61,12 +61,17 @@ run_case() {
   ELAPSED_MS=$(( ($(date +%s%N) - start) / 1000000 ))
 }
 
-report_attr() { sed -n 's/.*<testsuite [^>]*'"$1"'="\([0-9]*\)".*/\1/p' "$OUT" | head -1; }
+# Decodes the authentic (last) base64 report block of the current case into $OUT.xml
+report_xml() {
+  awk '/===GITS-REPORT-BEGIN===/ { buf = ""; inside = 1; next } /===GITS-REPORT-END===/ { inside = 0; last = buf; next } inside { buf = buf $0 } END { printf "%s", last }' "$OUT" | base64 -d > "$OUT.xml" 2>/dev/null || : > "$OUT.xml"
+}
+report_attr() { sed -n 's/.*<testsuite [^>]*'"$1"'="\([0-9]*\)".*/\1/p' "$OUT.xml" | head -1; }
 
 expect_all_pass() {
   local name=$1
   run_case "$name" "$TIMEOUT_SECONDS"
   local tests failures_ errors
+  report_xml
   tests=$(report_attr tests); failures_=$(report_attr failures); errors=$(report_attr errors)
   if (( TIMED_OUT )); then fail "$name" "timed out"; return; fi
   if [[ -z "$tests" || "$tests" == 0 ]]; then fail "$name" "no JUnit report: $(tail -c 1500 "$OUT")"; return; fi
@@ -98,11 +103,20 @@ expect_all_pass memory-bomb
 expect_all_pass fs-readonly
 expect_all_pass no-secrets
 
-# 9. Infinite loop is stopped by the caller's timeout
+# 9. Fake protocol markers in output and failure messages do not change the real report
+run_case marker-spoof "$TIMEOUT_SECONDS"
+report_xml
+if [[ "$(report_attr tests)" == 2 && "$(report_attr failures)" == 1 ]]; then
+  pass marker-spoof "real report: 2 tests, 1 failure"
+else
+  fail marker-spoof "tests=$(report_attr tests) failures=$(report_attr failures)"
+fi
+
+# 10. Infinite loop is stopped by the caller's timeout
 run_case infinite-loop "$LOOP_TIMEOUT_SECONDS"
 if (( TIMED_OUT )); then pass infinite-loop "killed after ${LOOP_TIMEOUT_SECONDS}s"; else fail infinite-loop "finished by itself: rc=$RC"; fi
 
-# 10. Output flood is capped and ends the run
+# 11. Output flood is capped and ends the run
 run_case output-flood "$TIMEOUT_SECONDS"
 size=$(wc -c <"$OUT")
 if (( ! TIMED_OUT )) && (( size < 70000 )) && grep -q '===GITS-REPORT-END===' "$OUT"; then

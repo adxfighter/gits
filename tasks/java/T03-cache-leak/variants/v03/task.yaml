@@ -1,0 +1,24 @@
+code: T03-v03
+template: T03
+kind: task
+level: junior
+domain: банк
+time_limit_min: 20
+difficulty_params:
+  eviction: capacity
+  ttl: false
+  loc: 120
+editable:
+  - src/main/java/ru/gits/task/bank/t03/ExchangeRateCache.java
+readonly:
+  - src/main/java/ru/gits/task/bank/t03/CurrencyPair.java
+  - src/main/java/ru/gits/task/bank/t03/RateProvider.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Вытеснение учитывает последнее обращение, а не порядок первой загрузки (access order)
+  - Размер кэша по-прежнему ограничен ёмкостью
+  - Статистика попаданий и промахов считается как раньше
+  - Остальные методы (обратный курс, конвертация) не изменились

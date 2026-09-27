@@ -1,0 +1,24 @@
+code: T03-v04
+template: T03
+kind: task
+level: middle
+domain: логистика
+time_limit_min: 25
+difficulty_params:
+  eviction: capacity_ttl
+  ttl: true
+  loc: 120
+editable:
+  - src/main/java/ru/gits/task/logistics/t03/RouteCache.java
+readonly:
+  - src/main/java/ru/gits/task/logistics/t03/Route.java
+  - src/main/java/ru/gits/task/logistics/t03/RoutePlanner.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Срок жизни проверяется при чтении, устаревший маршрут не отдаётся
+  - Устаревшие записи не занимают место в кэше и не учитываются в size()
+  - Время берётся только из внедрённых часов (Clock)
+  - Ограничение ёмкости и вытеснение по давности использования сохранены

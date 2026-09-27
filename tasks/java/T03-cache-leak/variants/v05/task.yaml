@@ -1,0 +1,24 @@
+code: T03-v05
+template: T03
+kind: task
+level: middle
+domain: телеком
+time_limit_min: 25
+difficulty_params:
+  eviction: capacity_ttl
+  ttl: true
+  loc: 180
+editable:
+  - src/main/java/ru/gits/task/telecom/t03/SessionCache.java
+readonly:
+  - src/main/java/ru/gits/task/telecom/t03/Session.java
+  - src/main/java/ru/gits/task/telecom/t03/SessionStore.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Найдена утечка через побочную коллекцию статистики, а не только в основной карте
+  - Статистика по сессии удаляется при вытеснении и истечении срока записи
+  - Суммарные счётчики попаданий и промахов не теряются при вытеснении
+  - Ограничение ёмкости, срок жизни и загрузка «один раз» работают как раньше

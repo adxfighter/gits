@@ -1,0 +1,54 @@
+{
+  "code" : "T06-v04",
+  "status" : "PASSED",
+  "content_hash" : "2bc010926e97fe0587d547096f9ba515f3b0084fe727e97e92730a0d7ec2a780",
+  "validated_at" : "2026-09-27T16:24:56.414205300Z",
+  "validator_version" : 1,
+  "runs" : {
+    "requested" : 3,
+    "reference_passed" : 3,
+    "starter_failed" : 3,
+    "reference_max_ms" : 4626
+  },
+  "checks" : [ {
+    "id" : "schema",
+    "passed" : true,
+    "details" : "template.yaml и task.yaml соответствуют схеме"
+  }, {
+    "id" : "files",
+    "passed" : true,
+    "details" : "видимых тестов: 2, скрытых: 5"
+  }, {
+    "id" : "forbidden",
+    "passed" : true,
+    "details" : "Запрещённых конструкций нет"
+  }, {
+    "id" : "sizes",
+    "passed" : true,
+    "details" : "условие 1356 символов, starter 85 строк"
+  }, {
+    "id" : "no_leak",
+    "passed" : true,
+    "details" : "Фрагментов решения в видимых тестах нет"
+  }, {
+    "id" : "starter_compiles",
+    "passed" : true,
+    "details" : "starter и видимые тесты компилируются"
+  }, {
+    "id" : "reference_passes",
+    "passed" : true,
+    "details" : "решение прошло все тесты в 3 из 3 прогонов (нужно не менее 3)"
+  }, {
+    "id" : "starter_fails",
+    "passed" : true,
+    "details" : "starter провалил скрытые тесты в 3 из 3 прогонов (нужно не менее 3)"
+  }, {
+    "id" : "reference_time",
+    "passed" : true,
+    "details" : "самый долгий прогон решения — 4626 мс (не более 10000)"
+  }, {
+    "id" : "content_hash",
+    "passed" : true,
+    "details" : "2bc010926e97fe0587d547096f9ba515f3b0084fe727e97e92730a0d7ec2a780"
+  } ]
+}

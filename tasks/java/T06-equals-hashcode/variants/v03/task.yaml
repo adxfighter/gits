@@ -1,0 +1,23 @@
+code: T06-v03
+template: T06
+kind: task
+level: junior
+domain: интернет-магазин
+time_limit_min: 15
+difficulty_params:
+  key_fields: 1
+  inheritance: false
+  defect_type: reference_equality
+editable:
+  - src/main/java/ru/gits/task/shop/t06/Sku.java
+readonly:
+  - src/main/java/ru/gits/task/shop/t06/Cart.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Строки сравниваются через equals, а не через ==
+  - Нормализация артикула (trim, верхний регистр) сохранена
+  - hashCode согласован с equals
+  - Не добавлено интернирование строк как «исправление» вместо equals

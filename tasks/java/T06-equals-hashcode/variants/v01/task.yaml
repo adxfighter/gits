@@ -1,0 +1,23 @@
+code: T06-v01
+template: T06
+kind: task
+level: junior
+domain: образование
+time_limit_min: 15
+difficulty_params:
+  key_fields: 2
+  inheritance: false
+  defect_type: missing_hashcode
+editable:
+  - src/main/java/ru/gits/task/education/t06/StudentId.java
+readonly:
+  - src/main/java/ru/gits/task/education/t06/StudyGroup.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Реализован hashCode, согласованный с equals (те же поля)
+  - Равенство по-прежнему определяется университетом и номером зачётки
+  - Использован Objects.hash или record, без ручных ошибок в формуле
+  - Публичный API StudentId не изменён

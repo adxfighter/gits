@@ -1,0 +1,24 @@
+code: T10-v02
+template: T10
+kind: task
+level: middle
+domain: телеком
+time_limit_min: 25
+difficulty_params:
+  producers: 2
+  consumers: 2
+  bounded_queue: false
+editable:
+  - src/main/java/ru/gits/task/telecom/t10/CdrWriter.java
+readonly:
+  - src/main/java/ru/gits/task/telecom/t10/CallRecord.java
+  - src/main/java/ru/gits/task/telecom/t10/CdrStore.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Закрытие через shutdown() и awaitTermination, а не shutdownNow()
+  - Все принятые записи сохраняются ровно один раз, включая стоящие в очереди пула
+  - Записи, выполняемые в момент закрытия, не прерываются
+  - Результат close отражает, успел ли писатель завершиться за таймаут

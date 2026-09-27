@@ -1,0 +1,23 @@
+code: T10-v04
+template: T10
+kind: task
+level: senior
+domain: энергетика
+time_limit_min: 35
+difficulty_params:
+  producers: 2
+  consumers: 4
+  bounded_queue: true
+editable:
+  - src/main/java/ru/gits/task/energy/t10/TelemetryIngest.java
+readonly:
+  - src/main/java/ru/gits/task/energy/t10/Reading.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Потребитель завершается по сигналу закрытия, а не по пустой очереди
+  - Нет take(), который может заблокироваться навсегда после того, как другой потребитель забрал последний элемент
+  - Все принятые показания обрабатываются ровно один раз перед завершением
+  - Приём после закрытия отклоняется атомарно с постановкой в очередь

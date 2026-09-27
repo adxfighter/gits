@@ -1,0 +1,24 @@
+code: T08-v02
+template: T08
+kind: task
+level: middle
+domain: логистика
+time_limit_min: 30
+difficulty_params:
+  sources: 3
+  timeouts: false
+  partial_result: true
+editable:
+  - src/main/java/ru/gits/task/logistics/t08/RateShopping.java
+readonly:
+  - src/main/java/ru/gits/task/logistics/t08/CarrierClient.java
+  - src/main/java/ru/gits/task/logistics/t08/CarrierRate.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Нет блокирующего join()/get() в потоке пула до готовности ответов (allOf/thenCombine вместо ожидания)
+  - Ошибка перевозчика обрабатывается на его собственном future
+  - Ответы успешных перевозчиков не теряются и отсортированы по цене
+  - Список перевозчиков любой длины, а не только три

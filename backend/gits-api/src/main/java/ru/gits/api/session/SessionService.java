@@ -14,13 +14,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import ru.gits.api.session.selection.TaskProvider;
 import ru.gits.api.session.selection.TaskSelectionService;
 import ru.gits.core.invite.Invite;
 import ru.gits.core.invite.InviteRepository;
+import ru.gits.core.invite.InviteStatus;
 import ru.gits.core.run.RunJob;
 import ru.gits.core.run.RunJobRepository;
 import ru.gits.core.run.RunMode;
@@ -64,12 +67,14 @@ public class SessionService {
     private final SessionProperties properties;
     private final ApplicationEventPublisher events;
     private final Clock clock;
+    private final TransactionTemplate transactions;
     private final SecureRandom seeds = new SecureRandom();
 
     public SessionService(InviteRepository invites, AssessmentSessionRepository sessions,
                           SessionTaskRepository sessionTasks, RunJobRepository runs, TaskFileRepository files,
                           TaskProvider taskProvider, TaskSelectionService selection, SessionProperties properties,
-                          ApplicationEventPublisher events, Clock clock) {
+                          ApplicationEventPublisher events, Clock clock,
+                          PlatformTransactionManager transactionManager) {
         this.invites = invites;
         this.sessions = sessions;
         this.sessionTasks = sessionTasks;
@@ -80,6 +85,7 @@ public class SessionService {
         this.properties = properties;
         this.events = events;
         this.clock = clock;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -88,8 +94,7 @@ public class SessionService {
      */
     @Transactional
     public SessionView start(UUID inviteId) {
-        Invite invite = invites.findById(inviteId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Приглашение не найдено"));
+        Invite invite = lock(inviteId);
         var existing = sessions.findByInviteId(inviteId);
         if (existing.isPresent()) {
             return view(existing.get());
@@ -129,27 +134,50 @@ public class SessionService {
      */
     @Transactional
     public SessionView finish(UUID inviteId) {
+        lock(inviteId);
         AssessmentSession session = session(inviteId);
         if (session.getStatus() != SessionStatus.IN_PROGRESS) {
             return view(session);
         }
-        close(session, SessionStatus.FINISHED);
+        // finishing after the deadline, before the scheduler has noticed it, is still an expiry
+        boolean overdue = !clock.instant().isBefore(session.deadline());
+        close(session, overdue ? SessionStatus.EXPIRED : SessionStatus.FINISHED);
         return view(session);
     }
 
-    /** Scheduler entry: sessions whose time is over are submitted and marked EXPIRED. Returns their number. */
-    @Transactional
+    /**
+     * Scheduler entry: sessions whose time is over are submitted and marked EXPIRED, each in its own transaction, so
+     * one failing session does not hold back the others. Returns the number of expired sessions.
+     */
     public int expireOverdue() {
-        Instant now = clock.instant();
         int expired = 0;
-        for (AssessmentSession session : sessions.findByStatus(SessionStatus.IN_PROGRESS)) {
-            if (!now.isBefore(session.deadline())) {
-                close(session, SessionStatus.EXPIRED);
-                expired++;
-                LOG.info("Session {} expired, unfinished tasks submitted automatically", session.getId());
+        for (UUID inviteId : sessions.findInviteIdsOfOverdueSessions(clock.instant())) {
+            try {
+                if (Boolean.TRUE.equals(transactions.execute(status -> expire(inviteId)))) {
+                    expired++;
+                }
+            } catch (RuntimeException e) {
+                LOG.error("Session of invite {} could not be expired", inviteId, e);
             }
         }
         return expired;
+    }
+
+    private boolean expire(UUID inviteId) {
+        lock(inviteId);
+        AssessmentSession session = session(inviteId);
+        // re-checked under the lock: the candidate may have finished the session in the meantime
+        if (session.getStatus() != SessionStatus.IN_PROGRESS || clock.instant().isBefore(session.deadline())) {
+            return false;
+        }
+        close(session, SessionStatus.EXPIRED);
+        LOG.info("Session {} expired, unfinished tasks submitted automatically", session.getId());
+        return true;
+    }
+
+    private Invite lock(UUID inviteId) {
+        return invites.lockById(inviteId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Приглашение не найдено"));
     }
 
     /** The candidate's session, or 404 when it was not started. */
@@ -173,7 +201,10 @@ public class SessionService {
         } else {
             session.expire(now);
         }
-        session.getInvite().markCompleted();
+        // a revoked or expired invite keeps its status
+        if (session.getInvite().getStatus() == InviteStatus.STARTED) {
+            session.getInvite().markCompleted();
+        }
         events.publishEvent(new SessionFinishedEvent(session.getId()));
     }
 

@@ -5,7 +5,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+
+import jakarta.persistence.LockModeType;
 
 public interface InviteRepository extends JpaRepository<Invite, UUID> {
 
@@ -16,4 +19,12 @@ public interface InviteRepository extends JpaRepository<Invite, UUID> {
     /** Lightweight status lookup used on every candidate request. */
     @Query("select i.status from Invite i where i.id = :id")
     Optional<InviteStatus> findStatusById(UUID id);
+
+    /**
+     * The invite locked until the end of the transaction. Every change of a candidate's session takes this lock
+     * first, so requests of one candidate and the expiry scheduler never interleave.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select i from Invite i where i.id = :id")
+    Optional<Invite> lockById(UUID id);
 }

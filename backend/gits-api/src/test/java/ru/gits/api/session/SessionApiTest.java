@@ -14,10 +14,17 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -31,6 +38,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -373,7 +381,74 @@ class SessionApiTest extends ApiTest {
         assertThat(submit.getMode()).isEqualTo(RunMode.SUBMIT);
         assertThat(submit.getPayload()).contains("last version");
         // a second pass has nothing left to do
-        assertThat(sessions.findById(sessionId).orElseThrow().getStatus()).isEqualTo(SessionStatus.EXPIRED);
+        assertThat(sessionService.expireOverdue()).isZero();
+        assertThat(runs.findFirstBySessionTaskIdOrderByCreatedAtDesc(taskId).orElseThrow().getId())
+                .isEqualTo(submit.getId());
+    }
+
+    @Test
+    void finishingAfterTheDeadlineIsAnExpiry() throws Exception {
+        Candidate candidate = newCandidate();
+        candidate.post("/candidate/session/start").andExpect(status().isOk());
+        clock.advance(Duration.ofMinutes(91));
+
+        JsonNode finished = read(candidate.post("/candidate/session/finish").andExpect(status().isOk()).andReturn()
+                .getResponse());
+
+        assertThat(finished.get("status").asText()).isEqualTo("EXPIRED");
+    }
+
+    @Test
+    void concurrentRequestsOfOneCandidateAreSerialized() throws Exception {
+        Candidate candidate = newCandidate();
+
+        List<MockHttpServletResponse> starts = concurrently(() -> candidate.post("/candidate/session/start")
+                .andReturn().getResponse());
+        Set<UUID> sessionIds = new HashSet<>();
+        for (MockHttpServletResponse response : starts) {
+            assertThat(response.getStatus()).isEqualTo(200);
+            sessionIds.add(id(read(response)));
+        }
+        assertThat(sessionIds).hasSize(1);
+
+        List<JsonNode> tasks = list(read(starts.get(0)).get("tasks"));
+        UUID taskId = id(tasks.get(1));
+        List<MockHttpServletResponse> runResponses = concurrently(() -> candidate.post("/candidate/tasks/" + taskId
+                + "/run").andReturn().getResponse());
+        assertThat(runResponses).extracting(MockHttpServletResponse::getStatus).containsExactlyInAnyOrder(202, 409);
+        for (MockHttpServletResponse response : runResponses) {
+            if (response.getStatus() == 202) {
+                complete(id(read(response), "runId"), 2, 2, visibleCases());
+            }
+        }
+
+        UUID otherTask = id(tasks.get(2));
+        List<MockHttpServletResponse> submits = concurrently(() -> candidate.post("/candidate/tasks/" + otherTask
+                + "/submit").andReturn().getResponse());
+        assertThat(submits).extracting(MockHttpServletResponse::getStatus).containsExactlyInAnyOrder(202, 409);
+        assertThat(runs.countBySessionTaskIdAndMode(otherTask, RunMode.SUBMIT)).isEqualTo(1);
+    }
+
+    @Test
+    void recentSessionsAreTakenFromTheSameCompanyOnly() throws Exception {
+        var account = accounts.employer();
+        MockHttpSession employer = login(account);
+        List<Set<String>> given = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            JsonNode session = read(newCandidate(employer).post("/candidate/session/start")
+                    .andExpect(status().isOk()).andReturn().getResponse());
+            given.add(variantCodes(id(session)));
+            clock.advance(Duration.ofMinutes(1));
+        }
+        newCandidate().post("/candidate/session/start").andExpect(status().isOk());
+
+        Set<String> expected = new HashSet<>();
+        given.subList(1, 4).forEach(expected::addAll);
+        assertThat(new HashSet<>(sessionTasks.findVariantCodesOfRecentSessions(account.companyId(), 3)))
+                .isEqualTo(expected);
+        assertThat(new HashSet<>(sessionTasks.findVariantCodesOfRecentSessions(account.companyId(), 1)))
+                .isEqualTo(given.get(3));
+        assertThat(sessionTasks.findVariantCodesOfRecentSessions(UUID.randomUUID(), 3)).isEmpty();
     }
 
     @Test
@@ -403,7 +478,12 @@ class SessionApiTest extends ApiTest {
 
     /** Candidate who entered through an invite link and accepted consent. */
     private Candidate newCandidate() throws Exception {
-        String token = createInviteToken(login(accounts.employer()));
+        return newCandidate(login(accounts.employer()));
+    }
+
+    /** Candidate invited by the given employer, i.e. of the employer's company. */
+    private Candidate newCandidate(MockHttpSession employer) throws Exception {
+        String token = createInviteToken(employer);
         Cookie cookie = candidateCookie(mvc.perform(post("/candidate/enter").with(csrf()).with(client())
                 .contentType(MediaType.APPLICATION_JSON).content(body("token", token))).andReturn().getResponse());
         MockHttpServletResponse consent = mvc.perform(post("/candidate/consent").cookie(cookie).with(csrf()))
@@ -432,6 +512,35 @@ class SessionApiTest extends ApiTest {
             return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(path)
                     .cookie(cookie).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                     .content(json.writeValueAsString(Map.of("files", files))));
+        }
+    }
+
+    private Set<String> variantCodes(UUID sessionId) {
+        return new TransactionTemplate(transactionManager).execute(status ->
+                sessionTasks.findBySessionIdOrderByOrderNo(sessionId).stream()
+                        .map(task -> task.getVariant().getCode()).collect(Collectors.toSet()));
+    }
+
+    /** Sends the same request from two threads at once. */
+    private static List<MockHttpServletResponse> concurrently(Callable<MockHttpServletResponse> request)
+            throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        try {
+            List<Future<MockHttpServletResponse>> futures = new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                futures.add(pool.submit(() -> {
+                    barrier.await();
+                    return request.call();
+                }));
+            }
+            List<MockHttpServletResponse> responses = new ArrayList<>();
+            for (Future<MockHttpServletResponse> future : futures) {
+                responses.add(future.get(60, TimeUnit.SECONDS));
+            }
+            return responses;
+        } finally {
+            pool.shutdownNow();
         }
     }
 

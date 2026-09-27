@@ -18,6 +18,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import ru.gits.core.invite.InviteRepository;
 import ru.gits.core.run.RunJob;
 import ru.gits.core.run.RunJobRepository;
 import ru.gits.core.run.RunMode;
@@ -73,6 +74,7 @@ public class CandidateTaskService {
     private record StoredTestCase(String name, String status, String message, boolean hidden) {
     }
 
+    private final InviteRepository invites;
     private final SessionTaskRepository sessionTasks;
     private final TaskFileRepository files;
     private final RunJobRepository runs;
@@ -80,8 +82,9 @@ public class CandidateTaskService {
     private final SessionProperties properties;
     private final Clock clock;
 
-    public CandidateTaskService(SessionTaskRepository sessionTasks, TaskFileRepository files, RunJobRepository runs,
+    public CandidateTaskService(InviteRepository invites, SessionTaskRepository sessionTasks, TaskFileRepository files, RunJobRepository runs,
                                 RunResultRepository results, SessionProperties properties, Clock clock) {
+        this.invites = invites;
         this.sessionTasks = sessionTasks;
         this.files = files;
         this.runs = runs;
@@ -93,6 +96,7 @@ public class CandidateTaskService {
     /** The task with its visible files and current code; opening it starts the task. */
     @Transactional
     public TaskView task(UUID inviteId, UUID sessionTaskId) {
+        lock(inviteId);
         SessionTask task = ownTask(inviteId, sessionTaskId);
         if (isOpen(task.getSession())) {
             task.start(clock.instant());
@@ -208,6 +212,7 @@ public class CandidateTaskService {
 
     /** A task that can still be changed: the session is running, time is not over, the task is not submitted. */
     private SessionTask editableTask(UUID inviteId, UUID sessionTaskId) {
+        lock(inviteId);
         SessionTask task = ownTask(inviteId, sessionTaskId);
         if (!isOpen(task.getSession())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Время сессии истекло");
@@ -217,6 +222,15 @@ public class CandidateTaskService {
         }
         task.start(clock.instant());
         return task;
+    }
+
+    /**
+     * Serializes the candidate's changes with each other and with finish/expiry (see
+     * {@link InviteRepository#lockById}): the checks below always see the committed state.
+     */
+    private void lock(UUID inviteId) {
+        invites.lockById(inviteId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Задание не найдено"));
     }
 
     private boolean isOpen(AssessmentSession session) {

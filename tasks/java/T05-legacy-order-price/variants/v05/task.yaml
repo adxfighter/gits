@@ -1,0 +1,25 @@
+code: T05-v05
+template: T05
+kind: task
+level: senior
+domain: банк
+time_limit_min: 30
+difficulty_params:
+  loc: 250
+  cyclomatic: 35
+  rules: 7
+editable:
+  - src/main/java/ru/gits/task/bank/t05/LoanFeeCalculator.java
+readonly:
+  - src/main/java/ru/gits/task/bank/t05/LoanApplication.java
+  - src/main/java/ru/gits/task/bank/t05/LoanFee.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Ограничения минимума и максимума применяются после всех скидок
+  - Страховка и опция досрочного погашения не участвуют в скидках и ограничениях
+  - Порядок правил из регламента явно виден в коде
+  - Дублирование веток для зарплатных и прочих клиентов устранено
+  - Остальные результаты расчёта не изменились

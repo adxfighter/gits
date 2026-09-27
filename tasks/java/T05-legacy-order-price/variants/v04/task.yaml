@@ -1,0 +1,26 @@
+code: T05-v04
+template: T05
+kind: task
+level: senior
+domain: энергетика
+time_limit_min: 30
+difficulty_params:
+  loc: 250
+  cyclomatic: 35
+  rules: 7
+editable:
+  - src/main/java/ru/gits/task/energy/t05/ElectricityBillCalculator.java
+readonly:
+  - src/main/java/ru/gits/task/energy/t05/HourlyReading.java
+  - src/main/java/ru/gits/task/energy/t05/Customer.java
+  - src/main/java/ru/gits/task/energy/t05/ElectricityBill.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Интервал относится к месяцу по моменту начала, в том числе ночные часы последних и первых суток месяца
+  - Социальная норма и превышение считаются по часам в хронологическом порядке
+  - Ночная зона определяется в одном месте, дублирование веток устранено
+  - Сельский коэффициент, абонентская плата и округление не изменились
+  - Сложный метод разбит на шаги, отражающие правила тарифа

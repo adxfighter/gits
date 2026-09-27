@@ -1,0 +1,24 @@
+code: T05-v01
+template: T05
+kind: task
+level: junior
+domain: интернет-магазин
+time_limit_min: 25
+difficulty_params:
+  loc: 150
+  cyclomatic: 15
+  rules: 3
+editable:
+  - src/main/java/ru/gits/task/shop/t05/OrderPriceCalculator.java
+readonly:
+  - src/main/java/ru/gits/task/shop/t05/Order.java
+  - src/main/java/ru/gits/task/shop/t05/PriceBreakdown.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Скидка за объём применяется вместе с промокодом в порядке «объём, затем промокод»
+  - Остальные правила (промокоды, доставка, округление) не изменились
+  - Дублирование расчёта доставки и процентов устранено или сокращено без изменения поведения
+  - Метод разбит на понятные шаги с говорящими именами

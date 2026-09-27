@@ -1,0 +1,24 @@
+code: T04-v02
+template: T04
+kind: task
+level: middle
+domain: интернет-магазин
+time_limit_min: 25
+difficulty_params:
+  leak_sources: 1
+  thread_pool: false
+  nested_context: false
+editable:
+  - src/main/java/ru/gits/task/shop/t04/PriceWidget.java
+readonly:
+  - src/main/java/ru/gits/task/shop/t04/PriceBoard.java
+  - src/main/java/ru/gits/task/shop/t04/PriceListener.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Понята причина — каждое выражение this::onPrice создаёт новый объект слушателя
+  - Виджет сохраняет ссылку на зарегистрированного слушателя и отписывает именно её
+  - Повторный dispose безопасен, после dispose виджет не получает обновления
+  - PriceBoard и публичный API виджета не изменены

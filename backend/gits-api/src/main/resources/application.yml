@@ -55,3 +55,8 @@ gits:
     employer-password: ${DEMO_EMPLOYER_PASSWORD:}
     admin-email: ${DEMO_ADMIN_EMAIL:}
     admin-password: ${DEMO_ADMIN_PASSWORD:}
+  taskbank:
+    # Directory with schema/ and java/, mounted read-only into the api container; blank disables loading
+    path: ${TASKBANK_PATH:}
+    # The format example is not a real task and is never offered to candidates
+    excluded-templates: T00

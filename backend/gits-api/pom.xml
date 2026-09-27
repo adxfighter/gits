@@ -18,6 +18,11 @@
             <groupId>ru.gits</groupId>
             <artifactId>gits-core</artifactId>
         </dependency>
+        <!-- Task bank loader (reads validated variants from TASKBANK_PATH at startup) -->
+        <dependency>
+            <groupId>ru.gits</groupId>
+            <artifactId>gits-taskbank</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>

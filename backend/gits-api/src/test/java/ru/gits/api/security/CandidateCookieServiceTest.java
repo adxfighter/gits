@@ -20,7 +20,7 @@ class CandidateCookieServiceTest {
 
     private static CandidateCookieService serviceAt(Instant now) {
         var security = new GitsProperties.Security("unit-test-secret", TTL, false, 10, 20);
-        var properties = new GitsProperties("http://localhost:8080", Duration.ofDays(7), security, null);
+        var properties = new GitsProperties("http://localhost:8080", Duration.ofDays(7), security, null, null);
         return new CandidateCookieService(properties, Clock.fixed(now, ZoneOffset.UTC), "/api");
     }
 
@@ -51,7 +51,7 @@ class CandidateCookieServiceTest {
     void rejectedWhenSignedWithAnotherKey() {
         String value = issueCookie();
         var otherSecurity = new GitsProperties.Security("another-secret", TTL, false, 10, 20);
-        var other = new CandidateCookieService(new GitsProperties("x", Duration.ofDays(7), otherSecurity, null),
+        var other = new CandidateCookieService(new GitsProperties("x", Duration.ofDays(7), otherSecurity, null, null),
                 Clock.fixed(ISSUED, ZoneOffset.UTC), "/api");
 
         assertThat(other.parse(value)).isEmpty();

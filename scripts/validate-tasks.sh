@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export MSYS_NO_PATHCONV=1
 
-JAR=backend/gits-taskbank/target/gits-taskbank.jar
+JAR=backend/gits-taskbank/target/gits-taskbank-exec.jar
 IMAGE="${SANDBOX_IMAGE:-gits-sandbox-java:local}"
 JAVA_OPTS="-Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8"
 

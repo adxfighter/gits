@@ -1,0 +1,24 @@
+code: T05-v03
+template: T05
+kind: task
+level: middle
+domain: телеком
+time_limit_min: 30
+difficulty_params:
+  loc: 200
+  cyclomatic: 25
+  rules: 5
+editable:
+  - src/main/java/ru/gits/task/telecom/t05/MonthlyBillCalculator.java
+readonly:
+  - src/main/java/ru/gits/task/telecom/t05/MonthUsage.java
+  - src/main/java/ru/gits/task/telecom/t05/MonthlyBill.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Каждый звонок округляется до минут до применения пакета, пакет вычитается из минут
+  - Льгота применяется только к оплачиваемым местным минутам
+  - Междугородние звонки, SMS и абонентская плата считаются как раньше
+  - Дублирование веток «льготник / не льготник» устранено

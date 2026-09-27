@@ -1,0 +1,24 @@
+code: T05-v02
+template: T05
+kind: task
+level: middle
+domain: логистика
+time_limit_min: 30
+difficulty_params:
+  loc: 200
+  cyclomatic: 25
+  rules: 5
+editable:
+  - src/main/java/ru/gits/task/logistics/t05/DeliveryCostCalculator.java
+readonly:
+  - src/main/java/ru/gits/task/logistics/t05/Shipment.java
+  - src/main/java/ru/gits/task/logistics/t05/DeliveryQuote.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Надбавка за хрупкий груз начисляется один раз и для города, и для межгорода
+  - Порядок правил (база, хрупкость, срочность, страховка, обработка) соблюдён
+  - Дублирование веток города и межгорода устранено, различие — только в тарифах
+  - Остальные результаты расчёта не изменились

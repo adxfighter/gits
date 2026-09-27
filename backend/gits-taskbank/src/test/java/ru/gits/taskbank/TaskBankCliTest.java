@@ -10,32 +10,36 @@ import org.junit.jupiter.api.Test;
 
 class TaskBankCliTest {
 
+    private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+    private final PrintStream out = new PrintStream(buffer, true, StandardCharsets.UTF_8);
+
+    private String output() {
+        return buffer.toString(StandardCharsets.UTF_8);
+    }
+
     @Test
     void noArgumentsPrintsUsageAndFails() {
-        var buffer = new ByteArrayOutputStream();
-
-        int code = TaskBankCli.run(new String[0], new PrintStream(buffer, true, StandardCharsets.UTF_8));
-
-        assertThat(code).isEqualTo(TaskBankCli.EXIT_USAGE);
-        assertThat(buffer.toString(StandardCharsets.UTF_8)).contains("Usage: gits-taskbank");
+        assertThat(TaskBankCli.run(new String[0], out)).isEqualTo(TaskBankCli.EXIT_USAGE);
+        assertThat(output()).contains("Usage:").contains("validate").contains("verify-hashes");
     }
 
     @Test
     void helpSucceeds() {
-        var buffer = new ByteArrayOutputStream();
-
-        int code = TaskBankCli.run(new String[] {"help"}, new PrintStream(buffer, true, StandardCharsets.UTF_8));
-
-        assertThat(code).isEqualTo(TaskBankCli.EXIT_OK);
+        assertThat(TaskBankCli.run(new String[] {"help"}, out)).isEqualTo(TaskBankCli.EXIT_OK);
     }
 
     @Test
     void unknownCommandFails() {
-        var buffer = new ByteArrayOutputStream();
+        assertThat(TaskBankCli.run(new String[] {"frobnicate", "tasks/java"}, out)).isEqualTo(TaskBankCli.EXIT_USAGE);
+        assertThat(output()).contains("Unknown command: frobnicate");
+    }
 
-        int code = TaskBankCli.run(new String[] {"frobnicate"}, new PrintStream(buffer, true, StandardCharsets.UTF_8));
-
-        assertThat(code).isEqualTo(TaskBankCli.EXIT_USAGE);
-        assertThat(buffer.toString(StandardCharsets.UTF_8)).contains("Unknown command: frobnicate");
+    @Test
+    void rejectsBadOptions() {
+        assertThat(TaskBankCli.run(new String[] {"validate", "tasks/java", "--runs", "0"}, out))
+                .isEqualTo(TaskBankCli.EXIT_USAGE);
+        assertThat(TaskBankCli.run(new String[] {"validate", "tasks/java", "--color", "red"}, out))
+                .isEqualTo(TaskBankCli.EXIT_USAGE);
+        assertThat(output()).contains("--runs").contains("--color");
     }
 }

@@ -1,0 +1,22 @@
+code: T00-v01
+template: T00
+kind: task
+level: junior
+domain: образование
+time_limit_min: 15
+difficulty_params:
+  defect_type: boundary
+  defects_count: 1
+  loc: 55
+editable:
+  - src/main/java/ru/gits/task/education/t00/GradeStatistics.java
+readonly:
+  - src/main/java/ru/gits/task/education/t00/Grade.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Найдено и исправлено строгое сравнение на границе проходного балла
+  - Исправление минимально и не меняет публичный API
+  - Поведение для пустого списка и остальных методов не изменилось

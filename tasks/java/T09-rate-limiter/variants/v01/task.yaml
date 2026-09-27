@@ -1,0 +1,22 @@
+code: T09-v01
+template: T09
+kind: task
+level: middle
+domain: телеком
+time_limit_min: 25
+difficulty_params:
+  threads: 1
+  multi_key: false
+  permits: single
+editable:
+  - src/main/java/ru/gits/task/telecom/t09/SmsRateLimiter.java
+readonly: []
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Дробная часть пополнения не теряется (накопление остатка или хранение в более мелких единицах)
+  - Время последнего пополнения не сбрасывает накопленный остаток
+  - Число токенов не превышает ёмкость
+  - Нет переполнения при очень долгом простое

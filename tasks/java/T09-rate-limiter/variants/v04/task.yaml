@@ -1,0 +1,23 @@
+code: T09-v04
+template: T09
+kind: task
+level: senior
+domain: энергетика
+time_limit_min: 30
+difficulty_params:
+  threads: 4
+  multi_key: true
+  permits: multiple
+editable:
+  - src/main/java/ru/gits/task/energy/t09/DeviceBucket.java
+  - src/main/java/ru/gits/task/energy/t09/TelemetryQuota.java
+readonly: []
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - "Запрос нескольких разрешений атомарен: либо списываются все, либо ни одного"
+  - Проверка и списание пачки выполняются под одной блокировкой ведра, а не по одному токену
+  - Некорректное число разрешений отклоняется, пачка больше ёмкости не расходует токены
+  - Вёдра разных устройств не блокируют друг друга

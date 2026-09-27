@@ -1,0 +1,23 @@
+code: T09-v02
+template: T09
+kind: task
+level: middle
+domain: интернет-магазин
+time_limit_min: 25
+difficulty_params:
+  threads: 4
+  multi_key: true
+  permits: single
+editable:
+  - src/main/java/ru/gits/task/shop/t09/ApiRateLimiter.java
+readonly:
+  - src/main/java/ru/gits/task/shop/t09/TokenBucket.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Карта вёдер потокобезопасна (ConcurrentHashMap)
+  - Ведро клиента создаётся атомарно и ровно одно (computeIfAbsent, а не get + put)
+  - Нет глобальной блокировки на каждый запрос, сериализующей всех клиентов
+  - Поведение одного ведра не изменено

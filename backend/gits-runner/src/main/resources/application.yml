@@ -3,6 +3,15 @@ spring:
     name: gits-runner
   main:
     web-application-type: none
+  datasource:
+    url: jdbc:postgresql://localhost:5432/gits
+    username: gits
+    password: ${POSTGRES_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # The schema is migrated by gits-api; the runner only validates it.
+      ddl-auto: validate
 
 gits:
   runner:

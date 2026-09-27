@@ -18,9 +18,9 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Build and test (including Docker-backed tests)
+      - name: Build and test (Testcontainers uses the GitHub runner's Docker)
         working-directory: backend
-        run: mvn -B verify -Pdocker-tests
+        run: mvn -B verify
 
   frontend:
     runs-on: ubuntu-latest

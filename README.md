@@ -29,8 +29,7 @@
 ## Разработка
 ```bash
 cd backend
-mvn verify                 # unit- и интеграционные тесты без Docker
-mvn verify -Pdocker-tests  # плюс тесты, которым нужен Docker (Testcontainers, песочница)
+mvn verify   # unit- и интеграционные тесты; нужен запущенный Docker (Testcontainers поднимает PostgreSQL 17)
 ```
 Правила проекта для разработчиков и ИИ-ассистента — в [CLAUDE.md](CLAUDE.md), архитектурные решения — в [docs/adr](docs/adr), план разработки — в [docs/prompts/prompts-v1.0.md](docs/prompts/prompts-v1.0.md).
 

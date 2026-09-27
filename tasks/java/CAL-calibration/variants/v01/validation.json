@@ -1,0 +1,54 @@
+{
+  "code" : "CAL-v01",
+  "status" : "PASSED",
+  "content_hash" : "33349d80d0e935725dc6206828d01c292d57574324a0d268b5435a32869585a8",
+  "validated_at" : "2026-09-27T19:55:07.976575800Z",
+  "validator_version" : 1,
+  "runs" : {
+    "requested" : 3,
+    "reference_passed" : 3,
+    "starter_failed" : 0,
+    "reference_max_ms" : 4027
+  },
+  "checks" : [ {
+    "id" : "schema",
+    "passed" : true,
+    "details" : "template.yaml и task.yaml соответствуют схеме"
+  }, {
+    "id" : "files",
+    "passed" : true,
+    "details" : "видимых тестов: 4, скрытых: 0"
+  }, {
+    "id" : "forbidden",
+    "passed" : true,
+    "details" : "Запрещённых конструкций нет"
+  }, {
+    "id" : "sizes",
+    "passed" : true,
+    "details" : "условие 1202 символов, starter 58 строк"
+  }, {
+    "id" : "no_leak",
+    "passed" : true,
+    "details" : "Фрагментов решения в видимых тестах нет"
+  }, {
+    "id" : "starter_compiles",
+    "passed" : true,
+    "details" : "starter и видимые тесты компилируются"
+  }, {
+    "id" : "reference_passes",
+    "passed" : true,
+    "details" : "решение прошло все тесты в 3 из 3 прогонов (нужно не менее 3)"
+  }, {
+    "id" : "starter_fails",
+    "passed" : true,
+    "details" : "не требуется для калибровочного блока"
+  }, {
+    "id" : "reference_time",
+    "passed" : true,
+    "details" : "самый долгий прогон решения — 4027 мс (не более 10000)"
+  }, {
+    "id" : "content_hash",
+    "passed" : true,
+    "details" : "33349d80d0e935725dc6206828d01c292d57574324a0d268b5435a32869585a8"
+  } ]
+}

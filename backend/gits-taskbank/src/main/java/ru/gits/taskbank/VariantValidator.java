@@ -173,6 +173,9 @@ public final class VariantValidator {
             if (visible < 1) {
                 problems.add("калибровочному блоку нужен хотя бы один видимый тест");
             }
+            if (hidden > 0) {
+                problems.add("калибровочный блок не содержит скрытых тестов, найдено " + hidden);
+            }
         } else {
             if (visible < 2 || visible > 5) {
                 problems.add("видимых тестов " + visible + ", нужно 2–5");

@@ -1,0 +1,22 @@
+code: CAL-v01
+template: CAL
+kind: calibration
+level: junior
+domain: телеком
+time_limit_min: 5
+difficulty_params:
+  fragment_lines: 28
+  short_task: phone
+editable:
+  - src/main/java/ru/gits/task/telecom/cal/Typing.java
+  - src/main/java/ru/gits/task/telecom/cal/PhoneNumbers.java
+readonly:
+  - src/main/java/ru/gits/task/telecom/cal/Reference.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 0
+rubric:
+  - Не оценивается — блок используется только для поведенческого профиля
+  - Фрагмент перепечатан без изменений (без учёта пробелов)
+  - Номер нормализуется по описанным правилам

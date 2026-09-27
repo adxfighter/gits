@@ -1,0 +1,22 @@
+code: CAL-v02
+template: CAL
+kind: calibration
+level: junior
+domain: образование
+time_limit_min: 5
+difficulty_params:
+  fragment_lines: 31
+  short_task: name
+editable:
+  - src/main/java/ru/gits/task/education/cal/Typing.java
+  - src/main/java/ru/gits/task/education/cal/StudentNames.java
+readonly:
+  - src/main/java/ru/gits/task/education/cal/Reference.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 0
+rubric:
+  - Не оценивается — блок используется только для поведенческого профиля
+  - Фрагмент перепечатан без изменений (без учёта пробелов)
+  - Метод части 2 работает по описанным правилам

@@ -1,0 +1,22 @@
+code: CAL-v03
+template: CAL
+kind: calibration
+level: junior
+domain: логистика
+time_limit_min: 5
+difficulty_params:
+  fragment_lines: 32
+  short_task: duration
+editable:
+  - src/main/java/ru/gits/task/logistics/cal/Typing.java
+  - src/main/java/ru/gits/task/logistics/cal/Durations.java
+readonly:
+  - src/main/java/ru/gits/task/logistics/cal/Reference.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 0
+rubric:
+  - Не оценивается — блок используется только для поведенческого профиля
+  - Фрагмент перепечатан без изменений (без учёта пробелов)
+  - Метод части 2 работает по описанным правилам

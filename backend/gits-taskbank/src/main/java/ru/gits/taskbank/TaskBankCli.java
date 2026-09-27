@@ -1,6 +1,7 @@
 package ru.gits.taskbank;
 
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -166,21 +167,33 @@ public final class TaskBankCli {
         return problems == 0 ? EXIT_OK : EXIT_FAILED;
     }
 
+    /** Fails on unreadable task files and on REVIEW.md problems: the catalog must match the files exactly. */
     private static int stats(Options options, PrintStream out) {
-        BankStats stats = BankStats.collect(options.root());
+        BankStats stats;
+        try {
+            stats = BankStats.collect(options.root());
+        } catch (RuntimeException e) {
+            out.println("Банк задач не читается: " + rootMessage(e) + " — запустите validate --schema-only");
+            return EXIT_FAILED;
+        }
         out.print(stats.summary());
+        int result = stats.reviewProblems().isEmpty() ? EXIT_OK : EXIT_FAILED;
         if (options.catalog().isEmpty()) {
-            return EXIT_OK;
+            return result;
         }
         Path catalog = options.catalog().get();
         if (options.check()) {
             boolean current = stats.isCatalogCurrent(catalog);
-            out.println(current ? "Каталог актуален: " + catalog
-                    : "Каталог устарел: " + catalog + " — выполните stats с --catalog без --check");
-            return current ? EXIT_OK : EXIT_FAILED;
+            if (!Files.isRegularFile(catalog)) {
+                out.println("Каталог не найден: " + catalog + " — выполните stats с --catalog без --check");
+            } else {
+                out.println(current ? "Каталог актуален: " + catalog
+                        : "Каталог устарел: " + catalog + " — выполните stats с --catalog без --check");
+            }
+            return current ? result : EXIT_FAILED;
         }
         out.println((stats.writeCatalog(catalog) ? "Каталог обновлён: " : "Каталог не изменился: ") + catalog);
-        return EXIT_OK;
+        return result;
     }
 
     private static List<VariantLocation> selected(TaskBankLayout layout, Optional<String> variant) {
@@ -244,6 +257,13 @@ public final class TaskBankCli {
             }
             if (check && catalog == null) {
                 throw new IllegalArgumentException("--check используется вместе с --catalog");
+            }
+            boolean statsCommand = "stats".equals(args[0]);
+            if (!statsCommand && catalog != null) {
+                throw new IllegalArgumentException("--catalog и --check применимы только к stats");
+            }
+            if (statsCommand && variant != null) {
+                throw new IllegalArgumentException("stats описывает весь банк, --variant не применим");
             }
             return new Options(args[0], Path.of(args[1]), Optional.ofNullable(variant), Optional.ofNullable(runs),
                     parallel, image, runtime, schemaOnly, Optional.ofNullable(catalog), check);

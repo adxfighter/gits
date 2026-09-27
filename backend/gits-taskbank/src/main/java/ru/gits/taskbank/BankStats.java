@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -36,8 +37,16 @@ public final class BankStats {
     private static final List<String> LEVELS = List.of("junior", "middle", "senior");
     private static final List<String> REVIEW_CRITERIA =
             List.of("ясность", "реалистичность", "уровень", "скрытые тесты", "уникальность", "русский язык");
+    /** Start of a score row: | code | level |. A line that starts like this must parse completely. */
+    private static final Pattern REVIEW_ROW_START =
+            Pattern.compile("^\\|\\s*((?:T\\d{2}|CAL)-v\\d{2})\\s*\\|\\s*(junior|middle|senior)\\s*\\|");
     private static final Pattern REVIEW_ROW =
-            Pattern.compile("^\\|\\s*((?:T\\d{2}|CAL)-v\\d{2})\\s*\\|\\s*\\w+\\s*\\|((?:\\s*[1-5]\\s*\\|){6})");
+            Pattern.compile("^\\|\\s*((?:T\\d{2}|CAL)-v\\d{2})\\s*\\|\\s*(?:junior|middle|senior)\\s*\\|((?:\\s*[1-5]\\s*\\|){6})");
+    private static final Pattern CELL_SEPARATOR = Pattern.compile("\\|");
+
+    /** Scores by variant code and every problem met while reading REVIEW.md. */
+    record Review(Map<String, List<Integer>> scores, List<String> problems) {
+    }
 
     /** One variant of the bank. {@code reviewScores} are empty when REVIEW.md has no row for it. */
     public record Row(
@@ -62,20 +71,28 @@ public final class BankStats {
 
     private final List<Row> rows;
     private final Map<String, String> competencyTitles;
+    private final List<String> reviewProblems;
 
-    private BankStats(List<Row> rows, Map<String, String> competencyTitles) {
+    private BankStats(List<Row> rows, Map<String, String> competencyTitles, List<String> reviewProblems) {
         this.rows = rows;
         this.competencyTitles = competencyTitles;
+        this.reviewProblems = reviewProblems;
     }
 
     public List<Row> rows() {
         return rows;
     }
 
+    /** Problems of REVIEW.md: unparsed score rows, duplicates, codes that are not in the bank. */
+    public List<String> reviewProblems() {
+        return reviewProblems;
+    }
+
     /** Reads every variant under {@code root} (tasks/java) except the format example. */
     public static BankStats collect(Path root) {
         var layout = new TaskBankLayout(root);
-        Map<String, List<Integer>> review = readReview(root.resolve(REVIEW_FILE));
+        Review reviewTable = readReview(root.resolve(REVIEW_FILE));
+        Map<String, List<Integer>> review = reviewTable.scores();
         Map<Path, TemplateSpec> templates = new LinkedHashMap<>();
         List<Row> rows = new ArrayList<>();
         for (VariantLocation location : layout.variants()) {
@@ -101,7 +118,11 @@ public final class BankStats {
                     review.getOrDefault(spec.code(), List.of())));
         }
         rows.sort(Comparator.comparing(Row::calibration).thenComparing(Row::code));
-        return new BankStats(List.copyOf(rows), readCompetencyTitles(root.toAbsolutePath().getParent()));
+        List<String> problems = new ArrayList<>(reviewTable.problems());
+        var codes = rows.stream().map(Row::code).collect(Collectors.toSet());
+        review.keySet().stream().filter(code -> !codes.contains(code))
+                .forEach(code -> problems.add("REVIEW.md: оценки для " + code + ", которого нет в банке"));
+        return new BankStats(List.copyOf(rows), readCompetencyTitles(layout.tasksDirectory()), List.copyOf(problems));
     }
 
     /** Distributions printed by {@code gits-taskbank stats}. */
@@ -124,6 +145,7 @@ public final class BankStats {
                 .collect(Collectors.joining(", "))).append('\n');
         long invalid = rows.stream().filter(row -> row.validationProblem().isPresent()).count();
         out.append("Без действующей валидации: ").append(invalid).append('\n');
+        reviewProblems.forEach(problem -> out.append("⚠ ").append(problem).append('\n'));
         return out.toString();
     }
 
@@ -138,7 +160,9 @@ public final class BankStats {
                 .append(rows.size() - tasks.size()).append(".\n\n");
 
         md.append("## Варианты\n\n");
-        md.append("Оценки ревью (1–5): ").append(String.join(" / ", REVIEW_CRITERIA)).append(".\n\n");
+        md.append("Оценки ревью (1–5): ").append(String.join(" / ", REVIEW_CRITERIA)).append(".\n");
+        md.append("Число тестов — число различных тестовых методов (параметризованный тест считается один раз), ")
+                .append("так же считает валидатор. «Прогон, мс» — самый долгий прогон эталона при последней валидации.\n\n");
         md.append("| Код | Шаблон | Домен | Уровень | Компетенции | Параметры сложности | Видимых | Скрытых | Прогон, мс | Ревью |\n");
         md.append("|---|---|---|---|---|---|---|---|---|---|\n");
         for (Row row : rows) {
@@ -151,8 +175,7 @@ public final class BankStats {
                     .append(" | ").append(row.visibleTests())
                     .append(" | ").append(row.hiddenTests())
                     .append(" | ").append(row.referenceMaxMs().map(String::valueOf).orElse("—"))
-                    .append(" | ").append(row.reviewScores().isEmpty() ? "—"
-                            : row.reviewScores().stream().map(String::valueOf).collect(Collectors.joining("/")))
+                    .append(" | ").append(reviewCell(row))
                     .append(" |\n");
         }
 
@@ -182,8 +205,9 @@ public final class BankStats {
         md.append("\n## Известные ограничения\n\n");
         rows.stream().filter(row -> row.validationProblem().isPresent()).forEach(row ->
                 md.append("- ").append(row.code()).append(": ").append(row.validationProblem().get()).append(".\n"));
-        rows.stream().filter(row -> row.reviewScores().isEmpty()).forEach(row ->
+        rows.stream().filter(row -> !row.calibration() && row.reviewScores().isEmpty()).forEach(row ->
                 md.append("- ").append(row.code()).append(": нет оценок в REVIEW.md.\n"));
+        reviewProblems.forEach(problem -> md.append("- ").append(problem).append(".\n"));
         rows.stream().filter(row -> !row.reviewScores().isEmpty() && row.minReviewScore() < 3).forEach(row ->
                 md.append("- ").append(row.code()).append(": оценка ревью ниже 3.\n"));
         md.append("- Решение кандидата выполняется в одной JVM с тестами JUnit; целостность результата ")
@@ -197,11 +221,12 @@ public final class BankStats {
 
     /** Writes CATALOG.md; returns true when the file content changed. */
     public boolean writeCatalog(Path file) {
-        if (isCatalogCurrent(file)) {
+        String content = catalog();
+        if (matches(file, content)) {
             return false;
         }
         try {
-            Files.writeString(file, catalog());
+            Files.writeString(file, content);
             return true;
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot write " + file, e);
@@ -210,14 +235,25 @@ public final class BankStats {
 
     /** True when the file equals the generated catalog (line endings are ignored). */
     public boolean isCatalogCurrent(Path file) {
+        return matches(file, catalog());
+    }
+
+    private static boolean matches(Path file, String content) {
         if (!Files.isRegularFile(file)) {
             return false;
         }
         try {
-            return Files.readString(file).replace("\r\n", "\n").equals(catalog());
+            return Files.readString(file).replace("\r\n", "\n").equals(content);
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot read " + file, e);
         }
+    }
+
+    private static String reviewCell(Row row) {
+        if (row.reviewScores().isEmpty()) {
+            return row.calibration() ? "не оценивается" : "—";
+        }
+        return row.reviewScores().stream().map(String::valueOf).collect(Collectors.joining("/"));
     }
 
     private List<Row> tasks() {
@@ -244,7 +280,7 @@ public final class BankStats {
                 .collect(Collectors.joining(", "));
     }
 
-    private static long count(List<Row> rows, java.util.function.Predicate<Row> predicate) {
+    private static long count(List<Row> rows, Predicate<Row> predicate) {
         return rows.stream().filter(predicate).count();
     }
 
@@ -256,25 +292,39 @@ public final class BankStats {
                 .collect(Collectors.joining(", "));
     }
 
-    /** Scores from the review table: | code | level | 6 scores | comment |. */
-    static Map<String, List<Integer>> readReview(Path file) {
+    /**
+     * Scores from the review table: | code | level | 6 scores | comment |. Lines of other tables do not start with
+     * a code followed by a level and are ignored; a score row that does not parse or repeats a code is a problem.
+     */
+    static Review readReview(Path file) {
         if (!Files.isRegularFile(file)) {
-            return Map.of();
+            return new Review(Map.of(), List.of());
         }
         Map<String, List<Integer>> scores = new TreeMap<>();
+        List<String> problems = new ArrayList<>();
         try {
-            for (String line : Files.readAllLines(file)) {
-                var matcher = REVIEW_ROW.matcher(line);
-                if (matcher.find()) {
-                    List<Integer> values = Pattern.compile("\\|").splitAsStream(matcher.group(2))
-                            .map(String::strip).filter(cell -> !cell.isEmpty()).map(Integer::valueOf).toList();
-                    scores.put(matcher.group(1), values);
+            List<String> lines = Files.readAllLines(file);
+            for (int number = 1; number <= lines.size(); number++) {
+                String line = lines.get(number - 1);
+                var start = REVIEW_ROW_START.matcher(line);
+                if (!start.find()) {
+                    continue;
+                }
+                var row = REVIEW_ROW.matcher(line);
+                if (!row.find()) {
+                    problems.add("REVIEW.md, строка " + number + ": оценки " + start.group(1) + " не разобраны");
+                    continue;
+                }
+                List<Integer> values = CELL_SEPARATOR.splitAsStream(row.group(2))
+                        .map(String::strip).filter(cell -> !cell.isEmpty()).map(Integer::valueOf).toList();
+                if (scores.putIfAbsent(row.group(1), values) != null) {
+                    problems.add("REVIEW.md, строка " + number + ": повторные оценки " + row.group(1));
                 }
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot read " + file, e);
         }
-        return scores;
+        return new Review(scores, List.copyOf(problems));
     }
 
     private static Map<String, String> readCompetencyTitles(Path tasksDir) {

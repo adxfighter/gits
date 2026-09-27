@@ -4,6 +4,7 @@
 #   scripts/validate-tasks.sh --variant T01        one template (or --variant T01-v03 for one variant)
 #   scripts/validate-tasks.sh --changed-since origin/main   only variants changed since a git ref (CI)
 # Extra options (--runs, --parallel, --image, --runtime) are passed to the validator.
+# Without --changed-since the generated tasks/java/CATALOG.md is rebuilt afterwards (it shows run times).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export MSYS_NO_PATHCONV=1
@@ -30,8 +31,13 @@ if [[ ! -f "$JAR" || "${REBUILD:-0}" == "1" ]]; then
 fi
 
 if [[ -z "$changed_since" ]]; then
-  java $JAVA_OPTS -jar "$JAR" validate tasks/java "${args[@]}"
-  exit $?
+  status=0
+  java $JAVA_OPTS -jar "$JAR" validate tasks/java "${args[@]}" || status=$?
+  # validation.json (run times, statuses) changed, so the generated catalog follows it
+  if [[ -f tasks/java/CATALOG.md ]]; then
+    java $JAVA_OPTS -jar "$JAR" stats tasks/java --catalog tasks/java/CATALOG.md >/dev/null || true
+  fi
+  exit $status
 fi
 
 # Variant codes (T01-v03) touched since the ref, excluding validation.json-only changes

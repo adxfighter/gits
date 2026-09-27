@@ -28,9 +28,14 @@ public final class TaskBankLayout {
         this.root = root;
     }
 
+    /** tasks/, the parent of the bank root (tasks/java): holds schema/ and competencies.yaml. */
+    public Path tasksDirectory() {
+        return root.toAbsolutePath().getParent();
+    }
+
     /** tasks/schema, next to the bank root (tasks/java). */
     public Path schemaDirectory() {
-        return root.toAbsolutePath().getParent().resolve("schema");
+        return tasksDirectory().resolve("schema");
     }
 
     /** Template directories that contain a template.yaml, with or without variants. */

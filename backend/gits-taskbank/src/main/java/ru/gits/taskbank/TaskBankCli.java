@@ -1,6 +1,7 @@
 package ru.gits.taskbank;
 
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -16,7 +17,7 @@ import ru.gits.sandbox.SandboxExecutor;
 import ru.gits.taskbank.TaskBankLayout.VariantLocation;
 import ru.gits.taskbank.check.SchemaCheck;
 
-/** Task bank tool: {@code validate} and {@code verify-hashes}; {@code load}, {@code stats} follow in P06/P24. */
+/** Task bank tool: {@code validate}, {@code verify-hashes} and {@code stats}; {@code load} follows in P06. */
 public final class TaskBankCli {
 
     static final int EXIT_OK = 0;
@@ -40,6 +41,7 @@ public final class TaskBankCli {
             return switch (options.command()) {
                 case "validate" -> validate(options, out);
                 case "verify-hashes" -> verifyHashes(options, out);
+                case "stats" -> stats(options, out);
                 default -> {
                     out.println("Unknown command: " + options.command());
                     printUsage(out);
@@ -165,6 +167,35 @@ public final class TaskBankCli {
         return problems == 0 ? EXIT_OK : EXIT_FAILED;
     }
 
+    /** Fails on unreadable task files and on REVIEW.md problems: the catalog must match the files exactly. */
+    private static int stats(Options options, PrintStream out) {
+        BankStats stats;
+        try {
+            stats = BankStats.collect(options.root());
+        } catch (RuntimeException e) {
+            out.println("Банк задач не читается: " + rootMessage(e) + " — запустите validate --schema-only");
+            return EXIT_FAILED;
+        }
+        out.print(stats.summary());
+        int result = stats.reviewProblems().isEmpty() ? EXIT_OK : EXIT_FAILED;
+        if (options.catalog().isEmpty()) {
+            return result;
+        }
+        Path catalog = options.catalog().get();
+        if (options.check()) {
+            boolean current = stats.isCatalogCurrent(catalog);
+            if (!Files.isRegularFile(catalog)) {
+                out.println("Каталог не найден: " + catalog + " — выполните stats с --catalog без --check");
+            } else {
+                out.println(current ? "Каталог актуален: " + catalog
+                        : "Каталог устарел: " + catalog + " — выполните stats с --catalog без --check");
+            }
+            return current ? result : EXIT_FAILED;
+        }
+        out.println((stats.writeCatalog(catalog) ? "Каталог обновлён: " : "Каталог не изменился: ") + catalog);
+        return result;
+    }
+
     private static List<VariantLocation> selected(TaskBankLayout layout, Optional<String> variant) {
         return layout.variants().stream()
                 .filter(v -> variant.isEmpty() || v.code().equals(variant.get())
@@ -179,11 +210,13 @@ public final class TaskBankCli {
         out.println("                         [--schema-only]  (only template.yaml/task.yaml, no sandbox)");
         out.println("                         [--image gits-sandbox-java:local] [--runtime runc]");
         out.println("  gits-taskbank verify-hashes <tasks/java> [--variant ...]");
+        out.println("  gits-taskbank stats <tasks/java> [--catalog tasks/java/CATALOG.md [--check]]");
+        out.println("                         (--check: fail if the catalog is out of date, do not write it)");
         out.println("  gits-taskbank help");
     }
 
     record Options(String command, Path root, Optional<String> variant, Optional<Integer> runs, int parallel,
-                   String image, String runtime, boolean schemaOnly) {
+                   String image, String runtime, boolean schemaOnly, Optional<Path> catalog, boolean check) {
 
         static Options parse(String[] args) {
             if (args.length < 2) {
@@ -195,11 +228,17 @@ public final class TaskBankCli {
             String image = "gits-sandbox-java:local";
             String runtime = "runc";
             boolean schemaOnly = false;
+            Path catalog = null;
+            boolean check = false;
             List<String> rest = new ArrayList<>(List.of(args).subList(2, args.length));
             for (int i = 0; i < rest.size(); i++) {
                 String option = rest.get(i);
                 if (option.equals("--schema-only")) {
                     schemaOnly = true;
+                    continue;
+                }
+                if (option.equals("--check")) {
+                    check = true;
                     continue;
                 }
                 if (i + 1 >= rest.size()) {
@@ -212,11 +251,22 @@ public final class TaskBankCli {
                     case "--parallel" -> parallel = positive(option, value);
                     case "--image" -> image = value;
                     case "--runtime" -> runtime = value;
+                    case "--catalog" -> catalog = Path.of(value);
                     default -> throw new IllegalArgumentException("Неизвестный параметр: " + option);
                 }
             }
+            if (check && catalog == null) {
+                throw new IllegalArgumentException("--check используется вместе с --catalog");
+            }
+            boolean statsCommand = "stats".equals(args[0]);
+            if (!statsCommand && catalog != null) {
+                throw new IllegalArgumentException("--catalog и --check применимы только к stats");
+            }
+            if (statsCommand && variant != null) {
+                throw new IllegalArgumentException("stats описывает весь банк, --variant не применим");
+            }
             return new Options(args[0], Path.of(args[1]), Optional.ofNullable(variant), Optional.ofNullable(runs),
-                    parallel, image, runtime, schemaOnly);
+                    parallel, image, runtime, schemaOnly, Optional.ofNullable(catalog), check);
         }
 
         private static int positive(String option, String value) {

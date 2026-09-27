@@ -1,0 +1,24 @@
+code: T08-v03
+template: T08
+kind: task
+level: senior
+domain: банк
+time_limit_min: 35
+difficulty_params:
+  sources: 3
+  timeouts: true
+  partial_result: true
+editable:
+  - src/main/java/ru/gits/task/bank/t08/CreditScoring.java
+readonly:
+  - src/main/java/ru/gits/task/bank/t08/CreditBureau.java
+  - src/main/java/ru/gits/task/bank/t08/Decision.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Таймаут применяется к каждому бюро отдельно (completeOnTimeout/orTimeout на производной стадии)
+  - Future, полученный от бюро, не завершается и не отменяется сервисом
+  - Сбой и таймаут бюро исключают его из расчёта, а не роняют решение
+  - Правило «меньше двух ответов — ручная проверка» соблюдено

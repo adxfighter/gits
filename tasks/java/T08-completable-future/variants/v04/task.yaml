@@ -1,0 +1,25 @@
+code: T08-v04
+template: T08
+kind: task
+level: senior
+domain: телеком
+time_limit_min: 35
+difficulty_params:
+  sources: 2
+  timeouts: true
+  partial_result: false
+editable:
+  - src/main/java/ru/gits/task/telecom/t08/NumberCheck.java
+readonly:
+  - src/main/java/ru/gits/task/telecom/t08/NumberRegistry.java
+  - src/main/java/ru/gits/task/telecom/t08/FraudService.java
+  - src/main/java/ru/gits/task/telecom/t08/Verdict.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Зависимые асинхронные вызовы связаны через thenCompose, без join()/get() внутри цепочки
+  - Нормализация выполняется на переданном Executor, общий ForkJoinPool не используется
+  - Таймаут задан на каждый шаг, при превышении результат завершается TimeoutException
+  - Ошибки шагов не подавляются и доходят до вызывающего

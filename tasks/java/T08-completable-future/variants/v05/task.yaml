@@ -1,0 +1,25 @@
+code: T08-v05
+template: T08
+kind: task
+level: senior
+domain: медицина
+time_limit_min: 40
+difficulty_params:
+  sources: 4
+  timeouts: true
+  partial_result: true
+editable:
+  - src/main/java/ru/gits/task/medicine/t08/LabResultsCollector.java
+readonly:
+  - src/main/java/ru/gits/task/medicine/t08/Lab.java
+  - src/main/java/ru/gits/task/medicine/t08/LabResult.java
+  - src/main/java/ru/gits/task/medicine/t08/LabReport.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Нет allOf().join() и других блокировок в потоке пула — отчёт собирается в продолжении allOf
+  - Причина сбоя каждой лаборатории сохраняется, CompletionException разворачивается
+  - Таймаут на каждую лабораторию, без отмены её future
+  - Синхронное исключение лаборатории не роняет весь сбор

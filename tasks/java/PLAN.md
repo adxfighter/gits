@@ -56,3 +56,11 @@
 | T10-v03 | банк | senior | producers=4, consumers=2, bounded_queue=true | Платёжный конвейер: производитель навсегда блокируется на put после остановки |
 | T10-v04 | энергетика | senior | producers=2, consumers=4, bounded_queue=true | Приём телеметрии: потребитель завершается по isEmpty() и теряет элементы |
 | T10-v05 | медицина | senior | producers=2, consumers=2, bounded_queue=true | Очередь анализов: прерывание проглатывается, остановка зависает |
+
+## Калибровочный блок (не оценивается)
+
+| Вариант | Домен | Уровень | Параметры | Суть |
+|---|---|---|---|---|
+| CAL-v01 | телеком | junior | fragment_lines=26, short_task=phone | Перепечатка фрагмента; нормализация телефонного номера |
+| CAL-v02 | образование | junior | fragment_lines=28, short_task=name | Перепечатка фрагмента; форматирование ФИО |
+| CAL-v03 | логистика | junior | fragment_lines=29, short_task=duration | Перепечатка фрагмента; разбор длительности «1h 30m» |

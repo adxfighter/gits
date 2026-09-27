@@ -15,11 +15,16 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Validates copies of tasks/java/T00-example in real sandbox containers (needs Docker and the image). */
+/**
+ * Validates copies of tasks/java/T00-example and of a calibration block in real sandbox containers (needs Docker and
+ * the image). Checks that fail before the sandbox are covered without Docker in {@link CalibrationRulesTest}.
+ */
 class TaskBankValidatorDockerTest {
 
     private static final Path REPO_TASKS = Path.of("../../tasks");
     private static final String VARIANT = "java/T00-example/variants/v01";
+    private static final String CALIBRATION_TEMPLATE = "java/CAL-calibration";
+    private static final String CALIBRATION_VARIANT = CALIBRATION_TEMPLATE + "/variants/v01";
 
     @TempDir
     Path temp;
@@ -86,11 +91,30 @@ class TaskBankValidatorDockerTest {
         assertThat(ReportFiles.read(tasks.resolve(VARIANT)).orElseThrow().runs()).isNull();
     }
 
+    @Test
+    void calibrationBlockPassesWithoutStarterFailure() throws Exception {
+        Path tasks = copyBank(CALIBRATION_TEMPLATE, CALIBRATION_VARIANT);
+
+        Result validate = cli("validate", tasks.resolve("java").toString(), "--runs", "1");
+
+        assertThat(validate.code()).as(validate.output()).isEqualTo(TaskBankCli.EXIT_OK);
+        assertThat(validate.output()).contains("PASSED CAL-v01");
+        ValidationReport report = ReportFiles.read(tasks.resolve(CALIBRATION_VARIANT)).orElseThrow();
+        assertThat(report.checks()).filteredOn(check -> check.id().equals("starter_fails"))
+                .singleElement()
+                .satisfies(check -> assertThat(check.details()).contains("не требуется"));
+        assertThat(report.runs().referencePassed()).isEqualTo(1);
+    }
+
     private Path copyBank() throws IOException {
+        return copyBank("java/T00-example", VARIANT);
+    }
+
+    private Path copyBank(String template, String variant) throws IOException {
         Path target = temp.resolve("tasks");
         copyTree(REPO_TASKS.resolve("schema"), target.resolve("schema"));
-        copyTree(REPO_TASKS.resolve("java/T00-example"), target.resolve("java/T00-example"));
-        Files.deleteIfExists(target.resolve(VARIANT).resolve(VariantSources.VALIDATION_FILE));
+        copyTree(REPO_TASKS.resolve(template), target.resolve(template));
+        Files.deleteIfExists(target.resolve(variant).resolve(VariantSources.VALIDATION_FILE));
         return target;
     }
 

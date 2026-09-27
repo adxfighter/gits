@@ -60,6 +60,7 @@ jobs:
           docker compose up -d --wait
           curl -fsS http://localhost:8080/api/actuator/health
           curl -fsS http://localhost:8080/ | grep -q GITS
+          bash scripts/smoke-auth.sh
       - name: Logs on failure
         if: failure()
         run: docker compose logs

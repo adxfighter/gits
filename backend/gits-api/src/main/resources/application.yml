@@ -13,12 +13,22 @@ spring:
       ddl-auto: validate
   flyway:
     locations: classpath:db/migration
+  mvc:
+    problemdetails:
+      enabled: true
 
 server:
   port: 8080
+  # Trust X-Forwarded-* from the nginx container (private network) to get the real client address.
+  forward-headers-strategy: native
   servlet:
     # All endpoints live under /api so the same paths work directly and behind the nginx proxy.
     context-path: /api
+    session:
+      timeout: 8h
+      cookie:
+        http-only: true
+        same-site: lax
 
 management:
   endpoints:
@@ -29,3 +39,19 @@ management:
     health:
       probes:
         enabled: true
+
+gits:
+  public-base-url: ${GITS_PUBLIC_BASE_URL:http://localhost:8080}
+  invite-ttl: P7D
+  security:
+    candidate-secret: ${GITS_CANDIDATE_SECRET:}
+    candidate-ttl: PT12H
+    secure-cookies: false
+    login-per-minute: 10
+    enter-per-minute: 20
+  demo:
+    company-name: Демо-компания
+    employer-email: ${DEMO_EMPLOYER_EMAIL:}
+    employer-password: ${DEMO_EMPLOYER_PASSWORD:}
+    admin-email: ${DEMO_ADMIN_EMAIL:}
+    admin-password: ${DEMO_ADMIN_PASSWORD:}

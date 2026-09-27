@@ -9,9 +9,10 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import ru.gits.api.session.SessionProperties;
+import ru.gits.api.telemetry.TelemetryProperties;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties({GitsProperties.class, SessionProperties.class})
+@EnableConfigurationProperties({GitsProperties.class, SessionProperties.class, TelemetryProperties.class})
 @EnableScheduling
 @EnableAsync
 public class AppConfig {

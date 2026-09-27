@@ -56,6 +56,10 @@ public class SessionTask extends BaseEntity {
     @Column(name = "submitted_at")
     private Instant submittedAt;
 
+    /** SHA-256 of the one-time token for a sendBeacon telemetry batch; null when none is issued. */
+    @Column(name = "beacon_token_hash", length = 64)
+    private String beaconTokenHash;
+
     protected SessionTask() {
     }
 
@@ -82,6 +86,18 @@ public class SessionTask extends BaseEntity {
     public void submit(Instant now) {
         this.status = SessionTaskStatus.SUBMITTED;
         this.submittedAt = now;
+    }
+
+    public void issueBeaconToken(String tokenHash) {
+        this.beaconTokenHash = tokenHash;
+    }
+
+    public void consumeBeaconToken() {
+        this.beaconTokenHash = null;
+    }
+
+    public String getBeaconTokenHash() {
+        return beaconTokenHash;
     }
 
     public AssessmentSession getSession() {

@@ -14,7 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.cfg.CoercionAction;
+import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
 
 import ru.gits.core.invite.InviteRepository;
 import ru.gits.core.session.SessionStatus;
@@ -42,6 +45,7 @@ public class TelemetryService {
     private final SessionTaskRepository sessionTasks;
     private final TelemetryBatchRepository batches;
     private final TelemetryProperties properties;
+    /** Strict copy of the application mapper: "seq": 1.9 or "t": "12" is an error, not a silent coercion. */
     private final ObjectMapper json;
     private final Clock clock;
 
@@ -52,7 +56,10 @@ public class TelemetryService {
         this.sessionTasks = sessionTasks;
         this.batches = batches;
         this.properties = properties;
-        this.json = json;
+        this.json = json.copy().disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
+        this.json.coercionConfigDefaults()
+                .setCoercion(CoercionInputShape.String, CoercionAction.Fail)
+                .setCoercion(CoercionInputShape.Float, CoercionAction.Fail);
         this.clock = clock;
     }
 
@@ -71,7 +78,7 @@ public class TelemetryService {
         SessionTask task = sessionTasks.findById(sessionTaskId)
                 .filter(found -> found.getSession().getInvite().getId().equals(inviteId))
                 .orElseThrow(TelemetryService::foreign);
-        if (beacon && !BeaconTokens.consume(task, request.beaconToken())) {
+        if (beacon && !BeaconTokens.matches(task, request.beaconToken())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Недействительный токен отправки");
         }
         if (request.seq() == null || request.seq() < 0 || request.clientTsStart() == null
@@ -100,7 +107,12 @@ public class TelemetryService {
         Map<String, Boolean> flags = flags(task, seq, request, events);
         batches.save(new TelemetryBatch(task, seq, request.clientTsStart(), request.clientTsEnd(), write(events),
                 write(flags), clock.instant()));
-        return new Accepted(seq, false, flags, beacon ? null : reissue(task));
+        if (beacon) {
+            // only a stored new batch spends the token; the next JSON batch hands out a new one
+            task.consumeBeaconToken();
+            return new Accepted(seq, false, flags, null);
+        }
+        return new Accepted(seq, false, flags, reissue(task));
     }
 
     /** Timestamp checks inside the batch and against its neighbours by seq. Only raised flags are listed. */

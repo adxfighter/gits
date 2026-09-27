@@ -86,6 +86,7 @@ public class SessionTask extends BaseEntity {
     public void submit(Instant now) {
         this.status = SessionTaskStatus.SUBMITTED;
         this.submittedAt = now;
+        this.beaconTokenHash = null;
     }
 
     public void issueBeaconToken(String tokenHash) {

@@ -81,6 +81,13 @@ class TelemetryApiTest extends CandidateSessionTest {
                 .andExpect(status().isBadRequest());
         send(task, batch(0, 0, 10, List.of(Map.of("t", -1, "type", "blur")))).andExpect(status().isBadRequest());
         send(task, "{not json").andExpect(status().isBadRequest());
+        // numbers are not coerced: a fractional seq or a string t is an error
+        send(task, "{\"seq\":1.9,\"clientTsStart\":0,\"clientTsEnd\":1,\"events\":[]}")
+                .andExpect(status().isBadRequest());
+        send(task, "{\"seq\":0,\"clientTsStart\":0,\"clientTsEnd\":1,\"events\":[{\"t\":\"12\",\"type\":\"blur\"}]}")
+                .andExpect(status().isBadRequest());
+        send(task, batch(0, 0, 10, List.of(Map.of("t", 1, "type", "copy", "file", "a".repeat(301), "length", 1))))
+                .andExpect(status().isBadRequest());
         send(task, "{\"clientTsStart\":0,\"clientTsEnd\":1,\"events\":[]}").andExpect(status().isBadRequest());
         assertThat(batches.findBySessionTaskIdOrderBySeq(task.id())).isEmpty();
     }
@@ -167,6 +174,66 @@ class TelemetryApiTest extends CandidateSessionTest {
         assertThat(next).isNotBlank().isNotEqualTo(task.beaconToken());
         beacon(task, beaconBody(2, next, events)).andExpect(status().isOk());
         assertThat(batches.findBySessionTaskIdOrderBySeq(task.id())).hasSize(3);
+    }
+
+    @Test
+    void duplicateOrRejectedBeaconDoesNotSpendTheToken() throws Exception {
+        OpenTask task = openTask();
+        String events = "\"events\":[{\"t\":1,\"type\":\"blur\"}]";
+        send(task, batch(0, 0, 2, List.of(Map.of("t", 1, "type", "blur")))).andExpect(status().isOk());
+
+        // the JSON batch with seq 0 already landed: the beacon of the same batch is a duplicate
+        beacon(task, beaconBody(0, task.beaconToken(), events)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.duplicate").value(true));
+        beacon(task, beaconBody(1, task.beaconToken(), "\"events\":[{\"t\":1,\"type\":\"mouse\"}]"))
+                .andExpect(status().isBadRequest());
+        beacon(task, beaconBody(1, task.beaconToken(), events)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.duplicate").value(false));
+        beacon(task, beaconBody(2, task.beaconToken(), events)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void beaconToAForeignClosedOrExpiredTask() throws Exception {
+        OpenTask owner = openTask();
+        OpenTask stranger = openTask();
+        String events = "\"events\":[{\"t\":1,\"type\":\"blur\"}]";
+        // the stranger's own token does not open someone else's task
+        mvc.perform(post(path(owner.id())).cookie(stranger.candidate().cookie()).contentType("text/plain")
+                .content(beaconBody(0, stranger.beaconToken(), events))).andExpect(status().isForbidden());
+
+        owner.candidate().post("/candidate/tasks/" + owner.id() + "/submit").andExpect(status().isAccepted());
+        // submit withdraws the token
+        beacon(owner, beaconBody(0, owner.beaconToken(), events)).andExpect(status().isForbidden());
+
+        clock.advance(Duration.ofMinutes(90));
+        beacon(stranger, beaconBody(0, stranger.beaconToken(), events)).andExpect(status().isConflict());
+        assertThat(batches.findBySessionTaskIdOrderBySeq(owner.id())).isEmpty();
+        assertThat(batches.findBySessionTaskIdOrderBySeq(stranger.id())).isEmpty();
+    }
+
+    @Test
+    void beaconIsRecognizedBehindTheApiContextPath() throws Exception {
+        OpenTask task = openTask();
+        mvc.perform(post("/api" + path(task.id())).contextPath("/api").cookie(task.candidate().cookie())
+                        .contentType("text/plain;charset=UTF-8")
+                        .content(beaconBody(0, task.beaconToken(), "\"events\":[]")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void concurrentBatchesWithTheSameSeqAreStoredOnce() throws Exception {
+        OpenTask task = openTask();
+        String body = batch(0, 0, 10, List.of(Map.of("t", 1, "type", "blur")));
+
+        var responses = concurrently(() -> send(task, body).andReturn().getResponse());
+
+        List<Boolean> duplicates = new ArrayList<>();
+        for (var response : responses) {
+            assertThat(response.getStatus()).isEqualTo(200);
+            duplicates.add(read(response).get("duplicate").asBoolean());
+        }
+        assertThat(duplicates).containsExactlyInAnyOrder(true, false);
+        assertThat(batches.findBySessionTaskIdOrderBySeq(task.id())).hasSize(1);
     }
 
     // ---------------------------------------------------------------------------------------------------------------

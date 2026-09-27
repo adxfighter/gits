@@ -44,7 +44,10 @@ class TelemetryController {
         return telemetry.accept(inviteId(), sessionTaskId, body(request), true);
     }
 
-    /** Reads at most one byte over the limit, so an oversized body is never loaded whole. */
+    /**
+     * Reads at most one byte over the limit, so an oversized body is never loaded whole, with or without
+     * Content-Length. The bytes go to Jackson as they are: it detects UTF-8, and sendBeacon always sends UTF-8.
+     */
     private byte[] body(HttpServletRequest request) throws IOException {
         int limit = properties.maxBatchBytes();
         if (request.getContentLengthLong() > limit) {

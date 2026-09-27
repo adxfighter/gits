@@ -38,6 +38,8 @@ public record TelemetryEvent(
             "tab", "arrow", "punct", "bracket", "modifier", "other");
     public static final Set<String> EDIT_SOURCES = Set.of("typing", "paste", "completion", "other");
     public static final Set<String> VISIBILITY_STATES = Set.of("visible", "hidden");
+    /** Longest accepted file path; task paths are much shorter. */
+    public static final int MAX_FILE_LENGTH = 300;
 
     /**
      * Checks the event against its type. Returns an error message, or null when the event is valid.
@@ -48,6 +50,9 @@ public record TelemetryEvent(
         }
         if (type == null || !TYPES.contains(type)) {
             return "неизвестный type: " + type;
+        }
+        if (file != null && (file.isEmpty() || file.length() > MAX_FILE_LENGTH)) {
+            return "file — путь файла задания длиной до " + MAX_FILE_LENGTH + " символов";
         }
         return switch (type) {
             case "kd", "ku" -> {

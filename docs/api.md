@@ -28,7 +28,7 @@
 | `POST /candidate/tasks/{id}/run` | запуск на видимых тестах (тело `{"files": …}` необязательно — иначе берётся сохранённый снимок); ответ 202 с `runId` |
 | `POST /candidate/tasks/{id}/submit` | отправка на проверку скрытыми тестами; после неё задание закрыто для правок |
 | `GET /candidate/runs/{runId}` | статус и результат запуска |
-| `POST /candidate/tasks/{id}/telemetry` | пакет телеметрии ввода (JSON или text/plain от sendBeacon), см. [telemetry.md](telemetry.md); чужое задание — 403 |
+| `POST /candidate/tasks/{id}/telemetry` | пакет телеметрии ввода (JSON или text/plain от sendBeacon), см. [telemetry.md](telemetry.md); чужое задание здесь — 403 (по P08), в остальных путях — 404 |
 | `POST /candidate/session/finish` | завершить сессию |
 
 ### Правила сессии

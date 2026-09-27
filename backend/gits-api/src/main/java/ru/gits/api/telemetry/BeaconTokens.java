@@ -22,17 +22,16 @@ public final class BeaconTokens {
         return token;
     }
 
-    /** Checks the token and consumes it: the same token never authorizes a second request. */
-    static boolean consume(SessionTask task, String token) {
+    /**
+     * Checks the token without spending it: the caller spends it with {@link SessionTask#consumeBeaconToken()} once a
+     * new batch is stored, so a rejected or duplicate beacon leaves the page's token usable.
+     */
+    static boolean matches(SessionTask task, String token) {
         String expected = task.getBeaconTokenHash();
         if (expected == null || token == null || token.isEmpty()) {
             return false;
         }
-        boolean valid = MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII),
+        return MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII),
                 Hashing.sha256Hex(token).getBytes(StandardCharsets.US_ASCII));
-        if (valid) {
-            task.consumeBeaconToken();
-        }
-        return valid;
     }
 }

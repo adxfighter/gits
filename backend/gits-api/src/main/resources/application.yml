@@ -1,6 +1,18 @@
 spring:
   application:
     name: gits-api
+  datasource:
+    # Overridden by SPRING_DATASOURCE_* in docker-compose; defaults target a local `docker compose up postgres`.
+    url: jdbc:postgresql://localhost:5432/gits
+    username: gits
+    password: ${POSTGRES_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema; Hibernate only checks that entities match it.
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
 
 server:
   port: 8080

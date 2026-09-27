@@ -40,36 +40,4 @@
         </dependencies>
     </dependencyManagement>
 
-    <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-surefire-plugin</artifactId>
-                    <configuration>
-                        <!-- Tests tagged "docker" need a running Docker daemon; enable with -Pdocker-tests -->
-                        <excludedGroups>${surefire.excludedGroups}</excludedGroups>
-                    </configuration>
-                </plugin>
-            </plugins>
-        </pluginManagement>
-    </build>
-
-    <profiles>
-        <profile>
-            <id>default-tests</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <properties>
-                <surefire.excludedGroups>docker</surefire.excludedGroups>
-            </properties>
-        </profile>
-        <profile>
-            <id>docker-tests</id>
-            <properties>
-                <surefire.excludedGroups/>
-            </properties>
-        </profile>
-    </profiles>
 </project>

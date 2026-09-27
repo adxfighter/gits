@@ -19,6 +19,7 @@
 
     <modules>
         <module>gits-core</module>
+        <module>gits-sandbox-client</module>
         <module>gits-api</module>
         <module>gits-runner</module>
         <module>gits-taskbank</module>
@@ -35,6 +36,11 @@
             <dependency>
                 <groupId>ru.gits</groupId>
                 <artifactId>gits-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ru.gits</groupId>
+                <artifactId>gits-sandbox-client</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

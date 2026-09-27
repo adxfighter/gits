@@ -16,6 +16,8 @@ spring:
 gits:
   runner:
     concurrency: ${RUNNER_CONCURRENCY:2}
-    sandbox-runtime: ${SANDBOX_RUNTIME:runc}
+    poll-ms: 200
+    docker-binary: docker
     sandbox-image: ${SANDBOX_IMAGE:gits-sandbox-java:local}
-    heartbeat-ms: 60000
+    sandbox-runtime: ${SANDBOX_RUNTIME:runc}
+    timeout: 30s

@@ -20,6 +20,7 @@ services:
   api:
     build:
       context: ./backend
+      target: api
       args:
         MODULE: api
     image: gits-api:local
@@ -49,6 +50,7 @@ services:
   runner:
     build:
       context: ./backend
+      target: runner
       args:
         MODULE: runner
     image: gits-runner:local

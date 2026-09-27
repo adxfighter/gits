@@ -18,6 +18,8 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
+      - name: Build the sandbox image used by runner tests
+        run: docker build -t gits-sandbox-java:local sandbox/java
       - name: Build and test (Testcontainers uses the GitHub runner's Docker)
         working-directory: backend
         run: mvn -B verify
@@ -68,6 +70,7 @@ jobs:
           curl -fsS http://localhost:8080/api/actuator/health
           curl -fsS http://localhost:8080/ | grep -q GITS
           bash scripts/smoke-auth.sh
+          bash scripts/smoke-runner.sh
       - name: Logs on failure
         if: failure()
         run: docker compose logs

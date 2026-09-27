@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
  */
 public final class Durations {
 
-    private static final Pattern DURATION = Pattern.compile("(?:(\\d+)h)?\\s*(?:(\\d+)m)?");
+    private static final Pattern DURATION = Pattern.compile("(?:(\\d{1,4})h)?\\s*(?:(\\d{1,4})m)?");
 
     private Durations() {
     }

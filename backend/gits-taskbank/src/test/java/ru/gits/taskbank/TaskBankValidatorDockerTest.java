@@ -15,7 +15,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Validates copies of tasks/java/T00-example in real sandbox containers (needs Docker and the image). */
+/**
+ * Validates copies of tasks/java/T00-example and of a calibration block in real sandbox containers (needs Docker and
+ * the image). Checks that fail before the sandbox are covered without Docker in {@link CalibrationRulesTest}.
+ */
 class TaskBankValidatorDockerTest {
 
     private static final Path REPO_TASKS = Path.of("../../tasks");
@@ -100,32 +103,7 @@ class TaskBankValidatorDockerTest {
         assertThat(report.checks()).filteredOn(check -> check.id().equals("starter_fails"))
                 .singleElement()
                 .satisfies(check -> assertThat(check.details()).contains("не требуется"));
-        assertThat(report.runs().starterFailed()).isZero();
-    }
-
-    @Test
-    void calibrationBlockWithHiddenTestsIsRejected() throws Exception {
-        Path tasks = copyBank(CALIBRATION_TEMPLATE, CALIBRATION_VARIANT);
-        Path hidden = tasks.resolve(CALIBRATION_VARIANT)
-                .resolve("tests-hidden/src/test/java/ru/gits/task/telecom/cal/ExtraTest.java");
-        Files.createDirectories(hidden.getParent());
-        Files.writeString(hidden, """
-                package ru.gits.task.telecom.cal;
-
-                import org.junit.jupiter.api.Test;
-
-                class ExtraTest {
-                    @Test
-                    void extra() {
-                    }
-                }
-                """);
-
-        Result validate = cli("validate", tasks.resolve("java").toString());
-
-        assertThat(validate.code()).isEqualTo(TaskBankCli.EXIT_FAILED);
-        assertThat(validate.output()).contains("FAILED CAL-v01").contains("не содержит скрытых тестов");
-        assertThat(ReportFiles.read(tasks.resolve(CALIBRATION_VARIANT)).orElseThrow().runs()).isNull();
+        assertThat(report.runs().referencePassed()).isEqualTo(1);
     }
 
     private Path copyBank() throws IOException {

@@ -5,7 +5,7 @@ level: junior
 domain: логистика
 time_limit_min: 5
 difficulty_params:
-  fragment_lines: 32
+  fragment_lines: 29
   short_task: duration
 editable:
   - src/main/java/ru/gits/task/logistics/cal/Typing.java

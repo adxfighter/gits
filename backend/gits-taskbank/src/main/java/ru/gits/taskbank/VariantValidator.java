@@ -39,6 +39,8 @@ public final class VariantValidator {
     static final int STATEMENT_MAX = 3000;
     static final int STARTER_LOC_MIN = 40;
     static final int STARTER_LOC_MAX = 400;
+    static final String CALIBRATION_TEMPLATE = "CAL";
+    static final int CALIBRATION_MAX_MINUTES = 10;
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
@@ -72,9 +74,14 @@ public final class VariantValidator {
         VariantSpec variant = spec.get();
         checks.add(checkForbidden(sources));
         checks.add(checkSizes(sources));
-        checks.add(LeakCheck.findLeak(sources.starter(), sources.solution(), sources.visibleTests())
-                .map(leak -> new Check("no_leak", false, "Видимые тесты содержат фрагмент решения: " + leak))
-                .orElse(new Check("no_leak", true, "Фрагментов решения в видимых тестах нет")));
+        if (variant.isCalibration()) {
+            // The retyped fragment is public by design and the visible test holds the copy it compares with
+            checks.add(new Check("no_leak", true, "не требуется для калибровочного блока: решение не секретно"));
+        } else {
+            checks.add(LeakCheck.findLeak(sources.starter(), sources.solution(), sources.visibleTests())
+                    .map(leak -> new Check("no_leak", false, "Видимые тесты содержат фрагмент решения: " + leak))
+                    .orElse(new Check("no_leak", true, "Фрагментов решения в видимых тестах нет")));
+        }
 
         ValidationReport.Runs runs = runSandboxChecks(variant, sources, checks);
         checks.add(new Check("content_hash", true, hash));
@@ -121,6 +128,16 @@ public final class VariantValidator {
                 || variant.flakyPolicy().starterFailMin() > variant.flakyPolicy().runs()) {
             problems.add("flaky_policy: минимумы не могут превышать runs");
         }
+        // kind calibration relaxes the test checks, so it is allowed only for the calibration template and vice versa
+        boolean calibrationTemplate = CALIBRATION_TEMPLATE.equals(template.code());
+        if (calibrationTemplate != variant.isCalibration()) {
+            problems.add(calibrationTemplate
+                    ? "task.yaml: варианты шаблона CAL должны иметь kind: calibration"
+                    : "task.yaml: kind: calibration допустим только в шаблоне CAL");
+        }
+        if (variant.isCalibration() && variant.timeLimitMin() > CALIBRATION_MAX_MINUTES) {
+            problems.add("task.yaml: калибровочный блок — не более " + CALIBRATION_MAX_MINUTES + " минут");
+        }
         checks.add(new Check("schema", problems.isEmpty(),
                 problems.isEmpty() ? "template.yaml и task.yaml соответствуют схеме" : String.join("; ", problems)));
         return problems.isEmpty() ? Optional.of(variant) : Optional.empty();
@@ -143,7 +160,8 @@ public final class VariantValidator {
             problems.add("starter/ должен содержать ровно editable ∪ readonly; в starter: " + sources.starter().keySet()
                     + ", в task.yaml: " + declared);
         }
-        if (!variant.isCalibration() && sources.solution().isEmpty()) {
+        // Calibration blocks need a solution too: it proves the block can be completed
+        if (sources.solution().isEmpty()) {
             problems.add("нет solution/");
         }
         if (!editable.containsAll(sources.solution().keySet())) {
@@ -173,8 +191,9 @@ public final class VariantValidator {
             if (visible < 1) {
                 problems.add("калибровочному блоку нужен хотя бы один видимый тест");
             }
-            if (hidden > 0) {
-                problems.add("калибровочный блок не содержит скрытых тестов, найдено " + hidden);
+            if (!sources.hiddenTests().isEmpty()) {
+                problems.add("калибровочный блок не содержит скрытых тестов, в tests-hidden/ найдено файлов: "
+                        + sources.hiddenTests().size());
             }
         } else {
             if (visible < 2 || visible > 5) {

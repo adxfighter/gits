@@ -9,9 +9,9 @@ public final class PhoneNumbers {
     }
 
     /**
-     * Normalizes a Russian mobile number to eleven digits starting with 7.
+     * Normalizes a Russian phone number to eleven digits starting with 7.
      *
-     * @throws IllegalArgumentException when the text is not a Russian mobile number
+     * @throws IllegalArgumentException when the text is not a Russian phone number
      */
     public static String normalize(String raw) {
         if (raw == null) {
@@ -24,7 +24,7 @@ public final class PhoneNumbers {
             digits = "7" + digits.substring(1);
         }
         if (!digits.matches("7\\d{10}")) {
-            throw new IllegalArgumentException("Not a Russian mobile number: " + raw);
+            throw new IllegalArgumentException("Not a Russian phone number: " + raw);
         }
         return digits;
     }

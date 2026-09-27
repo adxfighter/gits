@@ -5,7 +5,7 @@ level: junior
 domain: образование
 time_limit_min: 5
 difficulty_params:
-  fragment_lines: 31
+  fragment_lines: 28
   short_task: name
 editable:
   - src/main/java/ru/gits/task/education/cal/Typing.java

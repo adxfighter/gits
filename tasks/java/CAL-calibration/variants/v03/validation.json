@@ -1,14 +1,14 @@
 {
   "code" : "CAL-v03",
   "status" : "PASSED",
-  "content_hash" : "a3f56066e9e5e1b6f23cd29000bd67834f76dd99cd79f429dcd63c5ca6a9ad83",
-  "validated_at" : "2026-09-27T19:55:21.809400800Z",
+  "content_hash" : "6487015f29c034fa7032019d4886809c3528797b7b1270e747fee3d20e348d10",
+  "validated_at" : "2026-09-27T20:13:21.033859500Z",
   "validator_version" : 1,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 0,
-    "reference_max_ms" : 3586
+    "reference_max_ms" : 4188
   },
   "checks" : [ {
     "id" : "schema",
@@ -25,11 +25,11 @@
   }, {
     "id" : "sizes",
     "passed" : true,
-    "details" : "условие 1212 символов, starter 60 строк"
+    "details" : "условие 1323 символов, starter 60 строк"
   }, {
     "id" : "no_leak",
     "passed" : true,
-    "details" : "Фрагментов решения в видимых тестах нет"
+    "details" : "не требуется для калибровочного блока: решение не секретно"
   }, {
     "id" : "starter_compiles",
     "passed" : true,
@@ -45,10 +45,10 @@
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 3586 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 4188 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,
-    "details" : "a3f56066e9e5e1b6f23cd29000bd67834f76dd99cd79f429dcd63c5ca6a9ad83"
+    "details" : "6487015f29c034fa7032019d4886809c3528797b7b1270e747fee3d20e348d10"
   } ]
 }

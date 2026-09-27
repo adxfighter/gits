@@ -5,7 +5,7 @@ level: junior
 domain: телеком
 time_limit_min: 5
 difficulty_params:
-  fragment_lines: 28
+  fragment_lines: 26
   short_task: phone
 editable:
   - src/main/java/ru/gits/task/telecom/cal/Typing.java

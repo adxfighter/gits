@@ -1,0 +1,22 @@
+code: T09-v03
+template: T09
+kind: task
+level: senior
+domain: банк
+time_limit_min: 30
+difficulty_params:
+  threads: 8
+  multi_key: false
+  permits: single
+editable:
+  - src/main/java/ru/gits/task/bank/t09/PaymentLimiter.java
+readonly: []
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Пополнение, проверка и списание выполняются атомарно (synchronized, Lock или CAS над неизменяемым состоянием)
+  - volatile не выдаётся за решение проблемы атомарности
+  - Остаток токенов не теряется и не удваивается при конкурентном пополнении
+  - Нет ожидания или сна внутри tryAcquire

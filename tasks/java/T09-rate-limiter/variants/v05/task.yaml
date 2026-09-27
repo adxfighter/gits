@@ -1,0 +1,23 @@
+code: T09-v05
+template: T09
+kind: task
+level: senior
+domain: логистика
+time_limit_min: 35
+difficulty_params:
+  threads: 8
+  multi_key: true
+  permits: multiple
+editable:
+  - src/main/java/ru/gits/task/logistics/t09/CarrierBucket.java
+  - src/main/java/ru/gits/task/logistics/t09/CarrierOrderLimiter.java
+readonly: []
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Пополнение ограничено ёмкостью, в том числе после долгого простоя
+  - retryAfterNanos округляет вверх — после ожидания запрос гарантированно проходит
+  - Невыполнимый запрос (больше ёмкости) даёт Long.MAX_VALUE, а не конечное время
+  - Пополнение, проверка и списание атомарны при конкурентных запросах

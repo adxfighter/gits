@@ -1,0 +1,12 @@
+<configuration>
+    <!-- CLI tool: only warnings and errors; results are printed by TaskBankCli itself -->
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder>
+            <pattern>%level %logger{20}: %msg%n</pattern>
+        </encoder>
+    </appender>
+    <root level="WARN">
+        <appender-ref ref="STDERR"/>
+    </root>
+</configuration>

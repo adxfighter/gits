@@ -1,0 +1,23 @@
+code: T07-v05
+template: T07
+kind: task
+level: middle
+domain: энергетика
+time_limit_min: 30
+difficulty_params:
+  pipeline_ops: 7
+  edge_cases: 4
+editable:
+  - src/main/java/ru/gits/task/energy/t07/ConsumptionStats.java
+readonly:
+  - src/main/java/ru/gits/task/energy/t07/Reading.java
+  - src/main/java/ru/gits/task/energy/t07/MeterStats.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - reduce для min/max не использует 0 как тождество (summaryStatistics, min/max с Optional или корректное тождество)
+  - Минимум и максимум считаются по суточным суммам, а не по отдельным показаниям
+  - Для счётчика без показаний среднее, минимум и максимум пустые, а не NaN или 0
+  - Отрицательное суточное потребление (отдача в сеть) обрабатывается корректно

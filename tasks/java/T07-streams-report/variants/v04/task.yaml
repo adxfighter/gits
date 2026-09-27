@@ -1,0 +1,23 @@
+code: T07-v04
+template: T07
+kind: task
+level: middle
+domain: медицина
+time_limit_min: 30
+difficulty_params:
+  pipeline_ops: 7
+  edge_cases: 3
+editable:
+  - src/main/java/ru/gits/task/medicine/t07/VisitReport.java
+readonly:
+  - src/main/java/ru/gits/task/medicine/t07/Visit.java
+  - src/main/java/ru/gits/task/medicine/t07/PatientSummary.java
+flaky_policy:
+  runs: 3
+  reference_pass_min: 3
+  starter_fail_min: 3
+rubric:
+  - Список врачей после flatMap не содержит дубликатов (distinct до сортировки или Set)
+  - Число уникальных врачей согласовано со списком врачей
+  - Последний день периода включается в отчёт
+  - Визит без врачей учитывается в числе визитов

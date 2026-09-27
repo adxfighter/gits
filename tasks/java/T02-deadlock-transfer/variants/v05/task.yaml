@@ -1,0 +1,24 @@
+code: T02-v05
+template: T02
+kind: task
+level: senior
+domain: энергетика
+time_limit_min: 30
+difficulty_params:
+  resources: 5
+  call_depth: 2
+  nested_locks: true
+editable:
+  - src/main/java/ru/gits/task/energy/t02/FlowDispatcher.java
+readonly:
+  - src/main/java/ru/gits/task/energy/t02/GridNode.java
+  - src/main/java/ru/gits/task/energy/t02/Flow.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Пакет блокирует все затронутые узлы в едином порядке (по идентификатору), без повторного захвата одного узла в другом порядке
+  - Одиночный переток и пакет используют один и тот же протокол блокировок
+  - Пакет атомарен — при ошибке ни один переток не применён
+  - Суммарная нагрузка сети сохраняется, ограничения узлов не нарушаются

@@ -1,0 +1,23 @@
+code: T02-v03
+template: T02
+kind: task
+level: middle
+domain: телеком
+time_limit_min: 25
+difficulty_params:
+  resources: 3
+  call_depth: 2
+  nested_locks: true
+editable:
+  - src/main/java/ru/gits/task/telecom/t02/SettlementService.java
+readonly:
+  - src/main/java/ru/gits/task/telecom/t02/OperatorAccount.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Найдена блокировка, захватываемая во вспомогательном методе, а не только в верхнем
+  - Счета операторов блокируются в едином порядке, счёт клиринга — всегда последним
+  - Расчёт атомарен — списание, зачисление и комиссия под нужными блокировками
+  - Размер комиссии и проверки не изменились

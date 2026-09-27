@@ -16,6 +16,14 @@ class DeliveryCostCalculatorVisibleTest {
     }
 
     @Test
+    void fragileRegionParcelPaysForStartedKilograms() {
+        // 7.2 kg -> 8 kg: 450 + 3 x 60 = 630 RUB, fragile 15% = 94.50 RUB
+        var shipment = new Shipment(7_200, Shipment.Zone.REGION, true, false, 0);
+
+        assertThat(calculator.calculate(shipment)).isEqualTo(new DeliveryQuote(63_000, 9_450, 0, 0, 0, 72_450));
+    }
+
+    @Test
     void intercityParcelPaysForExtraKilograms() {
         var shipment = new Shipment(10_000, Shipment.Zone.INTERCITY, false, false, 0);
 

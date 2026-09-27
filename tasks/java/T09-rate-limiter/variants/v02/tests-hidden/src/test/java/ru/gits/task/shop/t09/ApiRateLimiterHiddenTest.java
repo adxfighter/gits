@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -106,6 +107,45 @@ class ApiRateLimiterHiddenTest {
             AtomicIntegerArray granted = burst(limiter, "solo", 1);
 
             assertThat(granted.get(0)).isEqualTo(CAPACITY);
+        });
+    }
+
+    @Test
+    void stalledClientDoesNotBlockOtherClients() {
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+            CountDownLatch stalled = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            // the clock hangs for the thread serving the slow client, i.e. inside its bucket
+            var limiter = new ApiRateLimiter(CAPACITY, 1, () -> {
+                if (Thread.currentThread().getName().equals("slow-client")) {
+                    stalled.countDown();
+                    try {
+                        release.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                return now.get();
+            });
+            assertThat(limiter.tryAcquire("slow")).isTrue();
+            assertThat(limiter.tryAcquire("fast")).isTrue();
+
+            Thread slow = new Thread(() -> limiter.tryAcquire("slow"), "slow-client");
+            slow.setDaemon(true);
+            AtomicBoolean fastGranted = new AtomicBoolean();
+            Thread fast = new Thread(() -> fastGranted.set(limiter.tryAcquire("fast")), "fast-client");
+            fast.setDaemon(true);
+            try {
+                slow.start();
+                assertThat(stalled.await(5, TimeUnit.SECONDS)).as("slow client reads the clock").isTrue();
+                fast.start();
+                fast.join(2_000);
+                assertThat(fast.isAlive()).as("another client waits for the stalled one").isFalse();
+                assertThat(fastGranted).isTrue();
+            } finally {
+                release.countDown();
+            }
+            slow.join(5_000);
         });
     }
 

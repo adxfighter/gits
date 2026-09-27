@@ -4,7 +4,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Stock keeping unit, normalized: trimmed and upper-cased.
+ * Stock keeping unit, normalized: stripped of surrounding whitespace and upper-cased.
  */
 public final class Sku {
 

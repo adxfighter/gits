@@ -39,7 +39,7 @@ public final class FlowDispatcher {
         return lockFlows(flows, 0);
     }
 
-    /** Locks the nodes of each flow in the order they appear in the batch, then applies the batch. */
+    /** Locks the nodes of the batch, then applies it. */
     private int lockFlows(List<Flow> flows, int index) {
         if (index == flows.size()) {
             return apply(flows);

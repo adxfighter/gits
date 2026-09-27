@@ -89,25 +89,25 @@ class BedManagementServiceHiddenTest {
     }
 
     @Test
-    void capacityIsNeverExceededUnderConcurrency() {
-        List<Ward> wards = hospital(3, 30, 20);
-        var overfilled = new AtomicInteger();
+    void oppositeDirectWardTransfersFinishInTime() {
+        List<Ward> wards = hospital(2, 1_000, 400);
+        Ward cardiology = wards.get(0);
+        Ward neurology = wards.get(1);
 
-        assertTimeoutPreemptively(DEADLINE, () -> runConcurrently(6, thread -> {
-            for (int i = 0; i < 20_000; i++) {
-                Ward from = wards.get(thread % 3);
-                Ward to = wards.get((thread + 1 + i) % 3);
-                if (from != to) {
-                    service.transfer(from, to);
-                }
-                if (to.occupied() > to.beds()) {
-                    overfilled.incrementAndGet();
+        // other modules call Ward.transferTo directly, bypassing the service
+        assertTimeoutPreemptively(DEADLINE, () -> runConcurrently(2, thread -> {
+            for (int i = 0; i < 30_000; i++) {
+                if (thread == 0) {
+                    cardiology.transferTo(neurology);
+                } else {
+                    neurology.transferTo(cardiology);
                 }
             }
-        }));
+        }), "opposite direct Ward.transferTo calls must not hang");
 
-        assertThat(overfilled.get()).isZero();
-        assertThat(service.totalPatients(wards)).isEqualTo(60);
+        assertThat(cardiology.occupied() + neurology.occupied()).isEqualTo(800);
+        assertThat(cardiology.occupied()).isLessThanOrEqualTo(cardiology.beds());
+        assertThat(neurology.occupied()).isLessThanOrEqualTo(neurology.beds());
     }
 
     @Test

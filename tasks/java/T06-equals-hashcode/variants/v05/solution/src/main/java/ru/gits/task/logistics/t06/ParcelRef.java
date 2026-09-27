@@ -1,10 +1,10 @@
 package ru.gits.task.logistics.t06;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Reference to a parcel. A reprinted label keeps the parcel the same, so the label version
- * does not take part in equality.
+ * Reference to a parcel scanned at sorting hubs.
  */
 public final class ParcelRef {
 
@@ -44,6 +44,11 @@ public final class ParcelRef {
         return new ParcelRef(carrier, trackingNo, originHub, labelVersion + 1);
     }
 
+    /** Tracking number normalised the same way for equals and hashCode: case is ignored. */
+    private String trackingKey() {
+        return trackingNo.toUpperCase(Locale.ROOT);
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -53,13 +58,14 @@ public final class ParcelRef {
             return false;
         }
         return carrier.equals(that.carrier)
-                && trackingNo.equals(that.trackingNo)
+                && trackingKey().equals(that.trackingKey())
                 && originHub.equals(that.originHub);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(carrier, trackingNo, originHub);
+        // Only the fields of equals; the label version is left out.
+        return Objects.hash(carrier, trackingKey(), originHub);
     }
 
     @Override

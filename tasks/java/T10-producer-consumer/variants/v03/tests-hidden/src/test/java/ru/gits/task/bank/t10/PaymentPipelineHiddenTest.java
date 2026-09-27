@@ -105,7 +105,12 @@ class PaymentPipelineHiddenTest {
             Thread.sleep(100);   // the queue is full, all producers are waiting
 
             var stopping = stopAsync(pipeline, Duration.ofSeconds(5));
-            Thread.sleep(50);
+            // the queue stays full while the gate is closed: only stop can release a waiting producer
+            assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
+                while (gateway.threads.stream().allMatch(Thread::isAlive)) {
+                    Thread.sleep(5);
+                }
+            }, "stop releases producers waiting for space");
             ledger.gate.countDown();
 
             assertThat(gateway.finishedWithin(Duration.ofSeconds(3))).as("gateway threads return").isTrue();

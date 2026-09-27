@@ -1,14 +1,14 @@
 {
   "code" : "T08-v02",
   "status" : "PASSED",
-  "content_hash" : "caebb88c9e4956939902c93cc17e52fe45907319c08576bac4ffe5db6b96b3e7",
-  "validated_at" : "2026-09-27T16:43:36.863719700Z",
+  "content_hash" : "953f1f31abcd7edebfed1b37f7641f0f2cc07e8a664907b8b453e46e03ec577d",
+  "validated_at" : "2026-09-27T19:14:58.759846400Z",
   "validator_version" : 1,
   "runs" : {
-    "requested" : 3,
-    "reference_passed" : 3,
-    "starter_failed" : 3,
-    "reference_max_ms" : 5495
+    "requested" : 20,
+    "reference_passed" : 20,
+    "starter_failed" : 20,
+    "reference_max_ms" : 4811
   },
   "checks" : [ {
     "id" : "schema",
@@ -25,7 +25,7 @@
   }, {
     "id" : "sizes",
     "passed" : true,
-    "details" : "условие 1472 символов, starter 62 строк"
+    "details" : "условие 1480 символов, starter 62 строк"
   }, {
     "id" : "no_leak",
     "passed" : true,
@@ -37,18 +37,18 @@
   }, {
     "id" : "reference_passes",
     "passed" : true,
-    "details" : "решение прошло все тесты в 3 из 3 прогонов (нужно не менее 3)"
+    "details" : "решение прошло все тесты в 20 из 20 прогонов (нужно не менее 20)"
   }, {
     "id" : "starter_fails",
     "passed" : true,
-    "details" : "starter провалил скрытые тесты в 3 из 3 прогонов (нужно не менее 3)"
+    "details" : "starter провалил скрытые тесты в 20 из 20 прогонов (нужно не менее 18)"
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 5495 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 4811 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,
-    "details" : "caebb88c9e4956939902c93cc17e52fe45907319c08576bac4ffe5db6b96b3e7"
+    "details" : "953f1f31abcd7edebfed1b37f7641f0f2cc07e8a664907b8b453e46e03ec577d"
   } ]
 }

@@ -28,8 +28,8 @@ class VisitReportVisibleTest {
     void visitsBeforeThePeriodAreIgnored() {
         List<PatientSummary> report = new VisitReport().summarize(List.of(
                 new Visit("v1", "P-1", LocalDate.of(2026, 2, 28), List.of("D-1")),
-                new Visit("v2", "P-1", LocalDate.of(2026, 3, 1), List.of("D-2"))), FROM, TO);
+                new Visit("v2", "P-2", LocalDate.of(2026, 3, 1), List.of("D-2"))), FROM, TO);
 
-        assertThat(report).containsExactly(new PatientSummary("P-1", 1, List.of("D-2"), 1));
+        assertThat(report).containsExactly(new PatientSummary("P-2", 1, List.of("D-2"), 1));
     }
 }

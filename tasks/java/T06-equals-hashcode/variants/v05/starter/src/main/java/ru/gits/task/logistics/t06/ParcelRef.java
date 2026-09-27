@@ -3,8 +3,7 @@ package ru.gits.task.logistics.t06;
 import java.util.Objects;
 
 /**
- * Reference to a parcel. A reprinted label keeps the parcel the same, so the label version
- * does not take part in equality.
+ * Reference to a parcel scanned at sorting hubs.
  */
 public final class ParcelRef {
 
@@ -53,7 +52,7 @@ public final class ParcelRef {
             return false;
         }
         return carrier.equals(that.carrier)
-                && trackingNo.equals(that.trackingNo)
+                && trackingNo.equalsIgnoreCase(that.trackingNo)
                 && originHub.equals(that.originHub);
     }
 

@@ -1,14 +1,14 @@
 {
   "code" : "T04-v01",
   "status" : "PASSED",
-  "content_hash" : "e88e689c81c1b5cee044e1884145ea12e8ef342995b3c5925dcf55d4ba8adf1f",
-  "validated_at" : "2026-09-27T16:02:35.541574500Z",
+  "content_hash" : "abb2348fecba141443b87df552be67c9d6e5b0f86dc630bad6fbed781df9bfb4",
+  "validated_at" : "2026-09-27T19:45:29.658872Z",
   "validator_version" : 1,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 3,
-    "reference_max_ms" : 4860
+    "reference_max_ms" : 4239
   },
   "checks" : [ {
     "id" : "schema",
@@ -25,7 +25,7 @@
   }, {
     "id" : "sizes",
     "passed" : true,
-    "details" : "условие 1260 символов, starter 66 строк"
+    "details" : "условие 1362 символов, starter 66 строк"
   }, {
     "id" : "no_leak",
     "passed" : true,
@@ -45,10 +45,10 @@
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 4860 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 4239 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,
-    "details" : "e88e689c81c1b5cee044e1884145ea12e8ef342995b3c5925dcf55d4ba8adf1f"
+    "details" : "abb2348fecba141443b87df552be67c9d6e5b0f86dc630bad6fbed781df9bfb4"
   } ]
 }

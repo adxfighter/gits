@@ -14,12 +14,13 @@ public record Order(List<Line> lines, String promoCode, Delivery delivery) {
 
     public enum Delivery {
         COURIER,
+        POST,
         PICKUP
     }
 
     /**
      * @param sku          product
-     * @param priceKopecks price of one unit
+     * @param priceKopecks price of one unit, 0 for a gift
      * @param quantity     number of units, positive
      */
     public record Line(String sku, long priceKopecks, int quantity) {

@@ -41,6 +41,29 @@ class ParcelRefHiddenTest {
     }
 
     @Test
+    void trackingNumberCaseDoesNotSplitHistory() {
+        var journal = new ScanJournal();
+        journal.record(new ParcelRef("CDEK", "trk-77ab", "MSK-1", 1), "MSK-1");
+        journal.record(new ParcelRef("CDEK", "TRK-77AB", "MSK-1", 1), "TVR-2");
+        journal.record(new ParcelRef("CDEK", "Trk-77aB", "MSK-1", 1), "SPB-3");
+
+        assertThat(journal.history(new ParcelRef("CDEK", "TRK-77AB", "MSK-1", 1))).containsExactly("MSK-1", "TVR-2", "SPB-3");
+        assertThat(journal.history(new ParcelRef("CDEK", "trk-77ab", "MSK-1", 1))).containsExactly("MSK-1", "TVR-2", "SPB-3");
+        assertThat(journal.parcelCount()).isEqualTo(1);
+    }
+
+    @Test
+    void refsDifferingOnlyInTrackingCaseHaveEqualHashCodes() {
+        for (int i = 0; i < 100; i++) {
+            var lower = new ParcelRef("PEK", "abc-" + i + "-xz", "KZN-1", 1);
+            var upper = new ParcelRef("PEK", "ABC-" + i + "-XZ", "KZN-1", 1 + i % 4);
+            assertThat(lower).isEqualTo(upper);
+            assertThat(upper).isEqualTo(lower);
+            assertThat(lower.hashCode()).as("parcel %d", i).isEqualTo(upper.hashCode());
+        }
+    }
+
+    @Test
     void labelVersionIsStillAvailable() {
         var ref = new ParcelRef("CDEK", "TRK-1", "MSK-1", 1).reprinted().reprinted();
         assertThat(ref.labelVersion()).isEqualTo(3);
@@ -52,6 +75,8 @@ class ParcelRefHiddenTest {
         assertThat(ref).isNotEqualTo(new ParcelRef("PEK", "TRK-1", "MSK-1", 1));
         assertThat(ref).isNotEqualTo(new ParcelRef("CDEK", "TRK-2", "MSK-1", 1));
         assertThat(ref).isNotEqualTo(new ParcelRef("CDEK", "TRK-1", "SPB-1", 1));
+        assertThat(ref).isNotEqualTo(new ParcelRef("cdek", "TRK-1", "MSK-1", 1));
+        assertThat(ref).isNotEqualTo(new ParcelRef("CDEK", "TRK-1", "msk-1", 1));
         assertThat(ref).isNotEqualTo(null).isNotEqualTo("CDEK:TRK-1");
     }
 }

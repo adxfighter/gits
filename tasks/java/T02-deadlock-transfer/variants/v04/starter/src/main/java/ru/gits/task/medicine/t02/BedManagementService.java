@@ -58,7 +58,7 @@ public final class BedManagementService {
         return lockAll(wards, 0, () -> wards.stream().mapToInt(Ward::occupied).sum());
     }
 
-    /** Runs the action while holding the monitors of all wards, acquired in list order. */
+    /** Runs the action while holding the monitors of all wards. */
     private static int lockAll(List<Ward> wards, int index, IntSupplier action) {
         if (index == wards.size()) {
             return action.getAsInt();

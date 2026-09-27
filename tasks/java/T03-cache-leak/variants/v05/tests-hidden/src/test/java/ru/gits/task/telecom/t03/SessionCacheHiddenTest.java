@@ -92,6 +92,7 @@ class SessionCacheHiddenTest {
 
         endedSessions.add("S-1");
         clock.advance(TTL);
+        cache.session("S-2");  // S-2 is reloaded and fresh
 
         assertThat(cache.session("S-1")).isEmpty();
         assertThat(cache.mostActive(5)).containsExactly("S-2");

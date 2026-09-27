@@ -77,6 +77,35 @@ class MonthlyStatementHiddenTest {
     }
 
     @Test
+    void sameMonthOfDifferentYearsIsNotMergedInALongPeriod() {
+        List<MonthLine> lines = new MonthlyStatement().build(List.of(
+                op("1", "2025-02-10", "-100"),
+                op("2", "2025-03-15", "-40"),
+                op("3", "2026-02-12", "-7"),
+                op("4", "2026-02-20", "3000")),
+                YearMonth.of(2025, 1), YearMonth.of(2026, 3));
+
+        assertThat(lines).hasSize(15);
+        assertThat(lines.get(0).month()).isEqualTo(YearMonth.of(2025, 1));
+        assertThat(lines.get(14).month()).isEqualTo(YearMonth.of(2026, 3));
+
+        MonthLine february2025 = lines.get(1);
+        assertThat(february2025.month()).isEqualTo(YearMonth.of(2025, 2));
+        assertThat(february2025.operationCount()).isEqualTo(1);
+        assertThat(february2025.turnover()).isEqualByComparingTo("100");
+        assertThat(february2025.largestDebit()).get().satisfies(debit -> assertThat(debit).isEqualByComparingTo("100"));
+
+        MonthLine february2026 = lines.get(13);
+        assertThat(february2026.month()).isEqualTo(YearMonth.of(2026, 2));
+        assertThat(february2026.operationCount()).isEqualTo(2);
+        assertThat(february2026.turnover()).isEqualByComparingTo("3007");
+        assertThat(february2026.largestDebit()).get().satisfies(debit -> assertThat(debit).isEqualByComparingTo("7"));
+
+        assertThat(lines.get(2).operationCount()).isEqualTo(1);
+        assertThat(lines.get(14).operationCount()).isZero();
+    }
+
+    @Test
     void periodBoundariesAreInclusiveAcrossYears() {
         List<MonthLine> lines = new MonthlyStatement().build(List.of(
                 op("1", "2025-10-31", "-1"),

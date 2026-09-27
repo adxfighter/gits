@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -106,13 +107,56 @@ class TelemetryQuotaHiddenTest {
     void batchesOfOneBusyDeviceAreAtomic() {
         assertTimeoutPreemptively(Duration.ofSeconds(60), () -> {
             for (int round = 0; round < 10; round++) {
-                var quota = new TelemetryQuota(10_000, 1, now::get);
+                // the clock yields, so threads interleave inside a request as they would under real load
+                var quota = new TelemetryQuota(10_000, 1, () -> {
+                    Thread.yield();
+                    return now.get();
+                });
 
                 AtomicIntegerArray accepted = burst(quota, 1, 1_000, 7);
 
                 assertThat(accepted.get(0)).as("round %d", round).isEqualTo(10_000 / 7);
                 assertThat(quota.available("meter-0")).as("round %d", round).isEqualTo(10_000 % 7);
             }
+        });
+    }
+
+    @Test
+    void stalledDeviceDoesNotBlockOtherDevices() {
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+            CountDownLatch stalled = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            // the clock hangs for the thread serving the slow device, i.e. inside its bucket
+            var quota = new TelemetryQuota(10, 1, () -> {
+                if (Thread.currentThread().getName().equals("slow-device")) {
+                    stalled.countDown();
+                    try {
+                        release.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                return now.get();
+            });
+            assertThat(quota.tryAcquire("meter-slow", 1)).isTrue();
+            assertThat(quota.tryAcquire("meter-fast", 1)).isTrue();
+
+            Thread slow = new Thread(() -> quota.tryAcquire("meter-slow", 2), "slow-device");
+            slow.setDaemon(true);
+            AtomicBoolean fastAccepted = new AtomicBoolean();
+            Thread fast = new Thread(() -> fastAccepted.set(quota.tryAcquire("meter-fast", 2)), "fast-device");
+            fast.setDaemon(true);
+            try {
+                slow.start();
+                assertThat(stalled.await(5, TimeUnit.SECONDS)).as("slow device reads the clock").isTrue();
+                fast.start();
+                fast.join(2_000);
+                assertThat(fast.isAlive()).as("another device waits for the stalled one").isFalse();
+                assertThat(fastAccepted).isTrue();
+            } finally {
+                release.countDown();
+            }
+            slow.join(5_000);
         });
     }
 

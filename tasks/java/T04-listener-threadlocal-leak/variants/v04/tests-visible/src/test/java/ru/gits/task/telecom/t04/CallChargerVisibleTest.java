@@ -36,4 +36,21 @@ class CallChargerVisibleTest {
         assertThat(charge).isEqualTo(150);
         assertThat(ratings.get()).isEqualTo(2);
     }
+
+    @Test
+    void failedRatingIsRepeatedWhenTheTariffChangedDuringIt() {
+        var tariffs = new TariffCatalog();
+        var charger = new CallCharger(tariffs);
+        var ratings = new AtomicInteger();
+
+        long charge = charger.charge(CALL, call -> {
+            if (ratings.incrementAndGet() == 1) {
+                tariffs.tariffChanged("SMART-5");
+                throw new IllegalStateException("Old tariff SMART-5 has no rate for " + call.callee());
+            }
+            return 180;
+        });
+
+        assertThat(charge).isEqualTo(180);
+    }
 }

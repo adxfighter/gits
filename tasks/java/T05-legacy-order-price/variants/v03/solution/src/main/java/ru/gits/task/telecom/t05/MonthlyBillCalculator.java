@@ -5,43 +5,158 @@ package ru.gits.task.telecom.t05;
  */
 public class MonthlyBillCalculator {
 
-    private static final long MONTHLY_FEE = 35_000;
-    private static final long LOCAL_PACKAGE_MINUTES = 300;
-    private static final long LOCAL_MINUTE_PRICE = 150;
-    private static final long LONG_DISTANCE_MINUTE_PRICE = 400;
-    private static final int FREE_SMS = 50;
-    private static final long SMS_PRICE = 200;
-    private static final int PENSIONER_DISCOUNT_PERCENT = 50;
-
     public MonthlyBill calculate(MonthUsage usage) {
-        long localMinutes = 0;
-        long longDistanceMinutes = 0;
+        // amounts in kopecks
+        long fee = 35000;
+        // package, minutes
+        long packageLeft = 300;
+        long packageUsed = 0;
+        long freeWeekend = 0;
+        long paidMinutes = 0;
+        long localCost = 0;
+        long longDistanceCost = 0;
+        long roamingCost = 0;
+        long smsCost = 0;
+        long total;
+
         for (MonthUsage.Call call : usage.calls()) {
-            long minutes = billedMinutes(call.seconds());
-            if (call.type() == MonthUsage.CallType.LOCAL) {
-                localMinutes += minutes;
+            MonthUsage.CallType type = call.type();
+            int seconds = call.seconds();
+
+            if (type == MonthUsage.CallType.LOCAL && !call.weekend()) {
+                // local call, working day
+                long minutes = seconds / 60;
+                if (seconds % 60 > 0) {
+                    minutes++;
+                }
+                if (minutes == 0) {
+                    continue;
+                }
+                long paid;
+                if (packageLeft >= minutes) {
+                    packageLeft = packageLeft - minutes;
+                    packageUsed = packageUsed + minutes;
+                    paid = 0;
+                } else if (packageLeft > 0) {
+                    paid = minutes - packageLeft;
+                    packageUsed = packageUsed + packageLeft;
+                    packageLeft = 0;
+                } else {
+                    paid = minutes;
+                }
+                paidMinutes = paidMinutes + paid;
+                // 1.50 per minute
+                localCost = localCost + paid * 150;
+
+            } else if (type == MonthUsage.CallType.LOCAL) {
+                // local call, weekend: free, package is not touched
+                long minutes = seconds / 60;
+                if (seconds % 60 != 0) {
+                    minutes = minutes + 1;
+                }
+                freeWeekend = freeWeekend + minutes;
+
+            } else if (type == MonthUsage.CallType.LONG_DISTANCE && !call.weekend()) {
+                // long distance, working day
+                long minutes = (seconds + 59) / 60;
+                long paid = 0;
+                if (minutes > 0) {
+                    if (packageLeft == 0) {
+                        paid = minutes;
+                    } else if (minutes <= packageLeft) {
+                        packageLeft -= minutes;
+                        packageUsed += minutes;
+                    } else {
+                        paid = minutes - packageLeft;
+                        packageUsed += packageLeft;
+                        packageLeft = 0;
+                    }
+                }
+                paidMinutes += paid;
+                // 4.00 per minute
+                longDistanceCost = longDistanceCost + paid * 400;
+
+            } else if (type == MonthUsage.CallType.LONG_DISTANCE) {
+                // long distance, weekend
+                long paid = 0;
+                if (seconds > 0) {
+                    if (packageLeft > 0) {
+                        long secondsLeft = packageLeft * 60;
+                        if (seconds <= secondsLeft) {
+                            secondsLeft = secondsLeft - seconds;
+                            long left = secondsLeft / 60;
+                            packageUsed = packageUsed + (packageLeft - left);
+                            packageLeft = left;
+                        } else {
+                            long over = seconds - secondsLeft;
+                            paid = over / 60;
+                            if (over % 60 != 0) {
+                                paid = paid + 1;
+                            }
+                            packageUsed = packageUsed + packageLeft;
+                            packageLeft = 0;
+                        }
+                    } else {
+                        paid = seconds / 60;
+                        if (seconds % 60 != 0) {
+                            paid = paid + 1;
+                        }
+                    }
+                }
+                paidMinutes = paidMinutes + paid;
+                // 3.00 per minute
+                longDistanceCost = longDistanceCost + paid * 300;
+
+            } else if (type == MonthUsage.CallType.ROAMING && !call.weekend()) {
+                // roaming, working day: no package
+                long minutes = seconds / 60;
+                if (seconds % 60 != 0) {
+                    minutes = minutes + 1;
+                }
+                paidMinutes = paidMinutes + minutes;
+                roamingCost = roamingCost + minutes * 1200;
+                if (roamingCost > 150000) {
+                    roamingCost = 150000;
+                }
+
+            } else if (type == MonthUsage.CallType.ROAMING) {
+                // roaming, weekend: no package
+                long minutes = (seconds + 59) / 60;
+                paidMinutes += minutes;
+                long cost = minutes * 1000;
+                if (roamingCost + cost > 150000) {
+                    roamingCost = 150000;
+                } else {
+                    roamingCost += cost;
+                }
+
             } else {
-                longDistanceMinutes += minutes;
+                throw new IllegalStateException("Unknown call type: " + type);
             }
         }
 
-        // the package is counted in minutes, after every call has been rounded
-        long paidLocalMinutes = Math.max(0, localMinutes - LOCAL_PACKAGE_MINUTES);
-        long localCost = paidLocalMinutes * LOCAL_MINUTE_PRICE;
-        long benefit = usage.pensioner() ? percent(localCost, PENSIONER_DISCOUNT_PERCENT) : 0;
-        long longDistanceCost = longDistanceMinutes * LONG_DISTANCE_MINUTE_PRICE;
-        long smsCost = Math.max(0, usage.smsCount() - FREE_SMS) * SMS_PRICE;
+        // sms: 50 included, 2.00 each after that
+        int sms = usage.smsCount();
+        int freeSms = 50;
+        if (sms > freeSms) {
+            long extraSms = sms - freeSms;
+            smsCost = extraSms * 200;
+        } else {
+            smsCost = 0;
+        }
 
-        long total = MONTHLY_FEE + localCost - benefit + longDistanceCost + smsCost;
-        return new MonthlyBill(MONTHLY_FEE, paidLocalMinutes, localCost, benefit, longDistanceCost, smsCost, total);
-    }
+        // total
+        total = fee;
+        total = total + localCost;
+        total = total + longDistanceCost;
+        total = total + smsCost;
+        if (roamingCost > 150000) {
+            total = total + 150000;
+        } else {
+            total = total + roamingCost;
+        }
 
-    /** Every started minute is billed. */
-    private static long billedMinutes(int seconds) {
-        return (seconds + 59L) / 60;
-    }
-
-    private static long percent(long amount, int percent) {
-        return (amount * percent + 50) / 100;
+        return new MonthlyBill(fee, packageUsed, freeWeekend, paidMinutes, localCost, longDistanceCost,
+                roamingCost, smsCost, total);
     }
 }

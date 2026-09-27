@@ -6,22 +6,23 @@ import java.util.Objects;
 /**
  * Usage of one subscriber during a month.
  *
- * @param calls      calls made
- * @param smsCount   SMS sent
- * @param pensioner  the subscriber has the pensioner benefit
+ * @param calls    calls in the order they were made
+ * @param smsCount SMS sent
  */
-public record MonthUsage(List<Call> calls, int smsCount, boolean pensioner) {
+public record MonthUsage(List<Call> calls, int smsCount) {
 
     public enum CallType {
         LOCAL,
-        LONG_DISTANCE
+        LONG_DISTANCE,
+        ROAMING
     }
 
     /**
      * @param type    call type
      * @param seconds call duration, 0 for an unanswered call
+     * @param weekend the call was made on Saturday or Sunday
      */
-    public record Call(CallType type, int seconds) {
+    public record Call(CallType type, int seconds, boolean weekend) {
         public Call {
             Objects.requireNonNull(type, "type");
             if (seconds < 0) {

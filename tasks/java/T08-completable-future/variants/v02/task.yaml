@@ -14,9 +14,9 @@ readonly:
   - src/main/java/ru/gits/task/logistics/t08/CarrierClient.java
   - src/main/java/ru/gits/task/logistics/t08/CarrierRate.java
 flaky_policy:
-  runs: 3
-  reference_pass_min: 3
-  starter_fail_min: 3
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
 rubric:
   - Нет блокирующего join()/get() в потоке пула до готовности ответов (allOf/thenCombine вместо ожидания)
   - Ошибка перевозчика обрабатывается на его собственном future

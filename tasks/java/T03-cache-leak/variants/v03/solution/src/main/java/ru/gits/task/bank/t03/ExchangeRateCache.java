@@ -49,7 +49,7 @@ public final class ExchangeRateCache {
         return loaded;
     }
 
-    /** Inverse rate (e.g. RUB/USD from USD/RUB) without an extra provider request. */
+    /** Rate of {@code pair} computed from the cached opposite pair (e.g. RUB/USD from USD/RUB), without an extra provider request. */
     public BigDecimal inverseRate(CurrencyPair pair) {
         return BigDecimal.ONE.divide(rate(pair.inverse()), PRECISION);
     }

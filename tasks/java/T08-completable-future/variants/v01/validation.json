@@ -2,13 +2,13 @@
   "code" : "T08-v01",
   "status" : "PASSED",
   "content_hash" : "253d0f3d87c957c1e9e6c72aa3379a1acb8ab1cf9e641db8b787627c4cf5c77a",
-  "validated_at" : "2026-09-27T16:43:25.471986700Z",
+  "validated_at" : "2026-09-27T18:41:27.027954400Z",
   "validator_version" : 1,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 3,
-    "reference_max_ms" : 5656
+    "reference_max_ms" : 5302
   },
   "checks" : [ {
     "id" : "schema",
@@ -45,7 +45,7 @@
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 5656 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 5302 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,

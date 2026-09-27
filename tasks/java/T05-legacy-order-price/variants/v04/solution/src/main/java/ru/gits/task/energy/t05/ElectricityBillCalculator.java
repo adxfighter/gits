@@ -1,71 +1,172 @@
 package ru.gits.task.energy.t05;
 
+import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
 /**
- * Calculates the monthly electricity bill from hourly readings: zone price per kWh, social norm and excess
- * coefficients in chronological order, rural discount, service fee.
+ * Calculates the monthly electricity bill from hourly readings. Legacy code.
  */
 public class ElectricityBillCalculator {
 
-    private static final long NIGHT_PRICE = 320;
-    private static final long DAY_PRICE = 640;
-    private static final long SOCIAL_NORM_KWH = 150;
-    private static final long EXCESS_FROM_KWH = 600;
-    private static final int SOCIAL_NORM_PERCENT = 80;
-    private static final int EXCESS_PERCENT = 130;
-    private static final int RURAL_DISCOUNT_PERCENT = 30;
-    private static final long SERVICE_FEE = 12_000;
-
     public ElectricityBill calculate(Customer customer, List<HourlyReading> readings, YearMonth month) {
-        List<HourlyReading> hours = readings.stream()
-                .filter(reading -> YearMonth.from(reading.start()).equals(month))  // hours that start in the month
-                .sorted(Comparator.comparing(HourlyReading::start))
-                .toList();
+        LocalDateTime from = month.atDay(1).atStartOfDay();
+        LocalDateTime to = month.plusMonths(1).atDay(1).atStartOfDay();
+        List<HourlyReading> sorted = new ArrayList<>(readings);
+        sorted.sort(Comparator.comparing(HourlyReading::start));
 
-        long dayKwh = 0;
-        long nightKwh = 0;
-        long energyCost = 0;
-        long consumed = 0;
-        for (HourlyReading hour : hours) {
-            boolean night = isNight(hour);
-            long price = night ? NIGHT_PRICE : DAY_PRICE;
-            for (int kwh = 0; kwh < hour.kilowattHours(); kwh++) {
-                consumed++;
-                energyCost += priceWithCoefficient(price, consumed);
+        // volumes by zone
+        long singleKwh = 0;
+        long twoNightKwh = 0;
+        long twoDayKwh = 0;
+        long threeNightKwh = 0;
+        long threePeakKwh = 0;
+        long threeHalfKwh = 0;
+        for (HourlyReading r : sorted) {
+            if (!inBillingPeriod(r.end(), from, to)) {
+                continue;
             }
-            if (night) {
-                nightKwh += hour.kilowattHours();
+            int h = r.start().getHour();
+            if (customer.plan() == TariffPlan.SINGLE) {
+                singleKwh = singleKwh + r.kilowattHours();
+            } else if (customer.plan() == TariffPlan.TWO_ZONE) {
+                if (h >= 23 || h < 7) {
+                    twoNightKwh = twoNightKwh + r.kilowattHours();
+                } else {
+                    twoDayKwh = twoDayKwh + r.kilowattHours();
+                }
             } else {
-                dayKwh += hour.kilowattHours();
+                if (h >= 23 || h < 7) {
+                    threeNightKwh = threeNightKwh + r.kilowattHours();
+                } else if (h >= 7 && h < 10 || h >= 17 && h < 21) {
+                    threePeakKwh = threePeakKwh + r.kilowattHours();
+                } else {
+                    threeHalfKwh = threeHalfKwh + r.kilowattHours();
+                }
             }
         }
-
-        long ruralDiscount = customer.rural() ? percent(energyCost, RURAL_DISCOUNT_PERCENT) : 0;
-        long total = energyCost - ruralDiscount + SERVICE_FEE;
-        return new ElectricityBill(dayKwh, nightKwh, energyCost, ruralDiscount, SERVICE_FEE, total);
-    }
-
-    /** Night zone: hours starting from 23:00 to 06:59. */
-    private static boolean isNight(HourlyReading reading) {
-        int hour = reading.start().getHour();
-        return hour >= 23 || hour < 7;
-    }
-
-    /** Price of the n-th kWh of the month (1-based), with the social norm or excess coefficient. */
-    private static long priceWithCoefficient(long price, long nthKwh) {
-        if (nthKwh <= SOCIAL_NORM_KWH) {
-            return price * SOCIAL_NORM_PERCENT / 100;
+        long nightKwh;
+        long peakKwh;
+        long dayKwh;
+        if (customer.plan() == TariffPlan.SINGLE) {
+            nightKwh = 0;
+            peakKwh = 0;
+            dayKwh = singleKwh;
+        } else if (customer.plan() == TariffPlan.TWO_ZONE) {
+            nightKwh = twoNightKwh;
+            peakKwh = 0;
+            dayKwh = twoDayKwh;
+        } else {
+            nightKwh = threeNightKwh;
+            peakKwh = threePeakKwh;
+            dayKwh = threeHalfKwh;
         }
-        if (nthKwh > EXCESS_FROM_KWH) {
-            return price * EXCESS_PERCENT / 100;
+
+        long norm = 150;
+        if (customer.electricStove()) {
+            norm = 250;
         }
-        return price;
+        long consumed = 0;
+        long singleCost = 0;
+        long nightCost = 0;
+        long peakCost = 0;
+        long dayCost = 0;
+
+        if (customer.plan() == TariffPlan.SINGLE) {
+            for (HourlyReading r : sorted) {
+                if (!inBillingPeriod(r.end(), from, to)) {
+                    continue;
+                }
+                long kwh = r.kilowattHours();
+                long inNorm = 0;
+                long inBase = 0;
+                long inExcess = 0;
+                if (consumed + kwh <= norm) {
+                    inNorm = kwh;
+                } else if (consumed >= 600) {
+                    inExcess = kwh;
+                } else {
+                    if (consumed < norm) {
+                        inNorm = norm - consumed;
+                    }
+                    if (consumed + kwh > 600) {
+                        inExcess = consumed + kwh - 600;
+                    }
+                    inBase = kwh - inNorm - inExcess;
+                }
+                consumed = consumed + kwh;
+                singleCost = singleCost + inNorm * 560 * 80 / 100 + inBase * 560 + inExcess * 560 * 130 / 100;
+            }
+        } else {
+            for (HourlyReading r : sorted) {
+                if (!inBillingPeriod(r.end(), from, to)) {
+                    continue;
+                }
+                int h = r.start().getHour();
+                long kwh = r.kilowattHours();
+                if (h >= 23 || h < 7) {
+                    long normLeft = Math.max(0, norm - consumed);
+                    long inNorm = Math.min(kwh, normLeft);
+                    long baseLeft = Math.max(0, 600 - consumed - inNorm);
+                    long inBase = Math.min(kwh - inNorm, baseLeft);
+                    long inExcess = kwh - inNorm - inBase;
+                    nightCost = nightCost + inNorm * 256;
+                    nightCost = nightCost + inBase * 320;
+                    nightCost = nightCost + inExcess * 416;
+                    consumed = consumed + kwh;
+                } else if (customer.plan() == TariffPlan.TWO_ZONE) {
+                    long normLeft = Math.max(0, norm - consumed);
+                    long inNorm = Math.min(kwh, normLeft);
+                    long baseLeft = Math.max(0, 600 - consumed - inNorm);
+                    long inBase = Math.min(kwh - inNorm, baseLeft);
+                    long inExcess = kwh - inNorm - inBase;
+                    dayCost = dayCost + inNorm * 640 * 80 / 100;
+                    dayCost = dayCost + inBase * 640;
+                    dayCost = dayCost + inExcess * 640 * 130 / 100;
+                    consumed = consumed + kwh;
+                } else if (h >= 7 && h < 10 || h >= 17 && h < 21) {
+                    long normLeft = Math.max(0, norm - consumed);
+                    long inNorm = Math.min(kwh, normLeft);
+                    long baseLeft = Math.max(0, 600 - consumed - inNorm);
+                    long inBase = Math.min(kwh - inNorm, baseLeft);
+                    long inExcess = kwh - inNorm - inBase;
+                    peakCost = peakCost + inNorm * 624;
+                    peakCost = peakCost + inBase * 780;
+                    peakCost = peakCost + inExcess * 1014;
+                    consumed = consumed + kwh;
+                } else {
+                    long normLeft = Math.max(0, norm - consumed);
+                    long inNorm = Math.min(kwh, normLeft);
+                    long baseLeft = Math.max(0, 600 - consumed - inNorm);
+                    long inBase = Math.min(kwh - inNorm, baseLeft);
+                    long inExcess = kwh - inNorm - inBase;
+                    dayCost = dayCost + inNorm * 560 * 80 / 100;
+                    dayCost = dayCost + inBase * 560;
+                    dayCost = dayCost + inExcess * 560 * 130 / 100;
+                    consumed = consumed + kwh;
+                }
+            }
+        }
+        long energyCost = singleCost + nightCost + peakCost + dayCost;
+
+        long serviceFee = 15000;
+        if (customer.plan() == TariffPlan.SINGLE) {
+            serviceFee = 12000;
+        }
+        long ruralDiscount = 0;
+        if (customer.rural()) {
+            ruralDiscount = energyCost * 30 / 100;
+            if (energyCost * 30 % 100 >= 50) {
+                ruralDiscount = ruralDiscount + 1;
+            }
+        }
+        long total = energyCost - ruralDiscount + serviceFee;
+        return new ElectricityBill(nightKwh, peakKwh, dayKwh, energyCost, ruralDiscount, serviceFee, total);
     }
 
-    private static long percent(long amount, int percent) {
-        return (amount * percent + 50) / 100;
+    private static boolean inBillingPeriod(LocalDateTime moment, LocalDateTime from, LocalDateTime to) {
+        return moment.isAfter(from) && !moment.isAfter(to);
     }
 }

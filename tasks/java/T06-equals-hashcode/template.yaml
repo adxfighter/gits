@@ -1,0 +1,31 @@
+code: T06
+title: Контракт equals/hashCode и изменяемые ключи
+competencies:
+  - java.collections.contracts
+  - java.design.api
+base_level: junior
+description: |
+  Объект используется как ключ HashMap или элемент HashSet, но нарушает контракт: equals без
+  hashCode, сравнение строк через ==, изменение полей ключа после вставки, несимметричный equals
+  при наследовании, поля hashCode не совпадают с полями equals. Кандидат восстанавливает контракт
+  (часто — делает ключ неизменяемым, например record), сохраняя смысл равенства из условия.
+  Типичные ошибки: hashCode из изменяемых полей; instanceof в equals при наличии подклассов;
+  исправление equals без hashCode.
+  Тесты: поиск в коллекции после вставки, отсутствие дубликатов, симметричность и
+  транзитивность equals, поведение после изменения исходных данных. Детерминированы.
+difficulty_model:
+  key_fields:
+    values: [1, 2, 3]
+    meaning: число полей, участвующих в равенстве
+  inheritance:
+    values: [false, true]
+    meaning: участвует ли наследование в сравнении
+  defect_type:
+    values: [missing_hashcode, mutable_key, reference_equality, asymmetric_equals, inconsistent_fields]
+    meaning: вид нарушения контракта
+domains:
+  - образование
+  - медицина
+  - интернет-магазин
+  - банк
+  - логистика

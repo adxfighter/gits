@@ -35,6 +35,14 @@ class TaskBankCliTest {
     }
 
     @Test
+    void repositoryTemplatesAndVariantsMatchTheSchema() {
+        int code = TaskBankCli.run(new String[] {"validate", "../../tasks/java", "--schema-only"}, out);
+
+        assertThat(code).as(output()).isEqualTo(TaskBankCli.EXIT_OK);
+        assertThat(output()).contains("schema-only").contains("с ошибками 0");
+    }
+
+    @Test
     void rejectsBadOptions() {
         assertThat(TaskBankCli.run(new String[] {"validate", "tasks/java", "--runs", "0"}, out))
                 .isEqualTo(TaskBankCli.EXIT_USAGE);

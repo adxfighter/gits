@@ -1,0 +1,24 @@
+code: T01-v03
+template: T01
+kind: task
+level: junior
+domain: интернет-магазин
+time_limit_min: 20
+difficulty_params:
+  threads: 8
+  shared_fields: 1
+  compound_ops: true
+  defects_count: 1
+editable:
+  - src/main/java/ru/gits/task/shop/t01/StockItem.java
+readonly:
+  - src/main/java/ru/gits/task/shop/t01/Reservation.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Проверка остатка и его уменьшение выполняются атомарно (одна операция)
+  - Остаток не уходит в минус и не теряются отмены резервов
+  - Отказ в резерве при нехватке товара работает как раньше
+  - Публичный API не изменён

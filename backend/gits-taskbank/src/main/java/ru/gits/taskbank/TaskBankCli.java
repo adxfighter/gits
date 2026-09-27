@@ -89,7 +89,10 @@ public final class TaskBankCli {
         return failed == 0 ? EXIT_OK : EXIT_FAILED;
     }
 
-    /** template.yaml of every template (even without variants) and task.yaml of every variant; no sandbox. */
+    /**
+     * Schema check without the sandbox: template.yaml of every selected template (even without variants)
+     * and task.yaml of every selected variant. {@code --variant} narrows both to that template/variant.
+     */
     private static int validateSchemas(TaskBankLayout layout, Options options, PrintStream out) {
         var schema = new SchemaCheck(layout.schemaDirectory());
         int problems = 0;
@@ -100,10 +103,17 @@ public final class TaskBankCli {
                 continue;
             }
             checked++;
-            String result = schema.validateTemplate(SchemaCheck.readYaml(templateDir.resolve("template.yaml")));
-            String templateCode = SchemaCheck.readYaml(templateDir.resolve("template.yaml")).path("code").asText();
-            if (!templateDir.getFileName().toString().startsWith(templateCode + "-")) {
-                result = (result.isEmpty() ? "" : result + "; ") + "каталог должен начинаться с " + templateCode + "-";
+            Path file = templateDir.resolve("template.yaml");
+            String result;
+            try {
+                var node = SchemaCheck.readYaml(file);
+                result = schema.validateTemplate(node);
+                String templateCode = node.path("code").asText();
+                if (!templateDir.getFileName().toString().startsWith(templateCode + "-")) {
+                    result = (result.isEmpty() ? "" : result + "; ") + "каталог должен начинаться с " + templateCode + "-";
+                }
+            } catch (RuntimeException e) {
+                result = "не читается как YAML: " + rootMessage(e);
             }
             if (!result.isEmpty()) {
                 problems++;
@@ -112,14 +122,32 @@ public final class TaskBankCli {
         }
         for (VariantLocation location : selected(layout, options.variant())) {
             checked++;
-            String result = schema.validateTask(SchemaCheck.readYaml(location.variantDir().resolve("task.yaml")));
+            String result;
+            try {
+                result = schema.validateTask(SchemaCheck.readYaml(location.variantDir().resolve("task.yaml")));
+            } catch (RuntimeException e) {
+                result = "не читается как YAML: " + rootMessage(e);
+            }
             if (!result.isEmpty()) {
                 problems++;
                 out.println("✗ " + location.code() + "/task.yaml: " + result);
             }
         }
         out.printf("schema-only: проверено файлов %d, с ошибками %d%n", checked, problems);
+        if (checked == 0) {
+            out.println("Ничего не найдено" + options.variant().map(v -> " для " + v).orElse(""));
+            return EXIT_FAILED;
+        }
         return problems == 0 ? EXIT_OK : EXIT_FAILED;
+    }
+
+    static String rootMessage(Throwable error) {
+        Throwable cause = error;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        String message = cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage();
+        return message.lines().findFirst().orElse(message);
     }
 
     private static int verifyHashes(Options options, PrintStream out) {

@@ -90,8 +90,15 @@ public final class VariantValidator {
             checks.add(new Check("schema", false, "Нет template.yaml или task.yaml"));
             return Optional.empty();
         }
-        JsonNode templateNode = SchemaCheck.readYaml(templateFile);
-        JsonNode taskNode = SchemaCheck.readYaml(taskFile);
+        JsonNode templateNode;
+        JsonNode taskNode;
+        try {
+            templateNode = SchemaCheck.readYaml(templateFile);
+            taskNode = SchemaCheck.readYaml(taskFile);
+        } catch (RuntimeException e) {
+            checks.add(new Check("schema", false, "YAML не читается: " + TaskBankCli.rootMessage(e)));
+            return Optional.empty();
+        }
         List<String> problems = new ArrayList<>();
         addIfPresent(problems, "template.yaml", schema.validateTemplate(templateNode));
         addIfPresent(problems, "task.yaml", schema.validateTask(taskNode));

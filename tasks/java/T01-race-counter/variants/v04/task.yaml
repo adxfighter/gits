@@ -1,0 +1,24 @@
+code: T01-v04
+template: T01
+kind: task
+level: middle
+domain: энергетика
+time_limit_min: 25
+difficulty_params:
+  threads: 16
+  shared_fields: 1
+  compound_ops: true
+  defects_count: 1
+editable:
+  - src/main/java/ru/gits/task/energy/t01/ConsumptionAggregator.java
+readonly:
+  - src/main/java/ru/gits/task/energy/t01/MeterReading.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Карта заменена на потокобезопасную, накопление выполняется атомарной операцией (merge/compute/LongAdder)
+  - Снимок и суммарное потребление читаются без исключений во время записи
+  - Нет глобальной блокировки, которая сериализует все счётчики без необходимости
+  - Отклонение некорректных показаний работает как раньше

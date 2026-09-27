@@ -1,0 +1,24 @@
+code: T01-v01
+template: T01
+kind: task
+level: junior
+domain: банк
+time_limit_min: 20
+difficulty_params:
+  threads: 4
+  shared_fields: 1
+  compound_ops: false
+  defects_count: 1
+editable:
+  - src/main/java/ru/gits/task/bank/t01/PaymentStatistics.java
+readonly:
+  - src/main/java/ru/gits/task/bank/t01/Payment.java
+flaky_policy:
+  runs: 20
+  reference_pass_min: 20
+  starter_fail_min: 18
+rubric:
+  - Счётчик обновляется атомарно (AtomicInteger/LongAdder или синхронизация всех обращений)
+  - Проверка некорректных платежей по-прежнему выполняется до учёта
+  - Публичный API класса не изменён
+  - Решение не вводит лишнюю глобальную блокировку за пределами класса

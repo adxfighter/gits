@@ -42,4 +42,12 @@ public interface RunJobRepository extends JpaRepository<RunJob, UUID> {
     long countBySessionTaskId(UUID sessionTaskId);
 
     boolean existsBySessionTaskSessionIdAndStatusIn(UUID sessionId, List<RunStatus> statuses);
+
+    long countBySessionTaskIdAndMode(UUID sessionTaskId, RunMode mode);
+
+    /** A run of the candidate's own session; other sessions' runs are not found. */
+    Optional<RunJob> findByIdAndSessionTaskSessionInviteId(UUID id, UUID inviteId);
+
+    /** The latest run of a task, if any. */
+    Optional<RunJob> findFirstBySessionTaskIdOrderByCreatedAtDesc(UUID sessionTaskId);
 }

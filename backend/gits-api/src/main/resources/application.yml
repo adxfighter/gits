@@ -60,3 +60,10 @@ gits:
     path: ${TASKBANK_PATH:}
     # The format example is not a real task and is never offered to candidates
     excluded-templates: T00
+  session:
+    time-limit: 90m
+    runs-per-task: 60
+    autosave-interval: 5s
+    max-code-bytes: 262144
+    recent-sessions: 3
+    expiry-check: 30s

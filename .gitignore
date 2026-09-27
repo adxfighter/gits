@@ -1,0 +1,26 @@
+# Secrets
+.env
+*.local.env
+
+# Java / Maven
+target/
+*.class
+*.log
+.mvn/wrapper/maven-wrapper.jar
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+coverage/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Test output
+e2e/test-results/
+e2e/playwright-report/

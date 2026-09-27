@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: gits-api
+
+server:
+  port: 8080
+  servlet:
+    # All endpoints live under /api so the same paths work directly and behind the nginx proxy.
+    context-path: /api
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

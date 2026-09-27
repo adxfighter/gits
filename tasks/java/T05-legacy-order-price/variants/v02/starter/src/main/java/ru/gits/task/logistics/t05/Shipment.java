@@ -13,6 +13,7 @@ public record Shipment(int weightGrams, Zone zone, boolean fragile, boolean expr
 
     public enum Zone {
         CITY,
+        REGION,
         INTERCITY
     }
 

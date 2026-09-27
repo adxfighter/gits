@@ -8,6 +8,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -15,6 +16,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class TrafficMeterHiddenTest {
+
+    private static final ThreadFactory DAEMON_THREADS = task -> {
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        return thread;
+    };
 
     private static final int GATEWAYS = 8;
     private static final int PACKETS_PER_GATEWAY = 40_000;
@@ -58,7 +65,7 @@ class TrafficMeterHiddenTest {
         var meter = new TrafficMeter("79001234567");
         var writing = new AtomicBoolean(true);
         var inconsistent = new AtomicReference<TrafficSnapshot>();
-        ExecutorService billing = Executors.newSingleThreadExecutor();
+        ExecutorService billing = Executors.newSingleThreadExecutor(DAEMON_THREADS);
         Future<?> reader = billing.submit(() -> {
             while (writing.get() && inconsistent.get() == null) {
                 TrafficSnapshot snapshot = meter.snapshot();
@@ -119,7 +126,7 @@ class TrafficMeterHiddenTest {
 
     private static void runConcurrently(int threads, Runnable work) throws Exception {
         var start = new CountDownLatch(1);
-        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        ExecutorService pool = Executors.newFixedThreadPool(threads, DAEMON_THREADS);
         try {
             List<Future<?>> futures = new ArrayList<>();
             for (int t = 0; t < threads; t++) {

@@ -12,74 +12,144 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 class MonthlyBillCalculatorHiddenTest {
 
+    private static final MonthUsage.CallType LOCAL = MonthUsage.CallType.LOCAL;
+    private static final MonthUsage.CallType LONG = MonthUsage.CallType.LONG_DISTANCE;
+    private static final MonthUsage.CallType ROAMING = MonthUsage.CallType.ROAMING;
+
     private final MonthlyBillCalculator calculator = new MonthlyBillCalculator();
 
-    private static List<MonthUsage.Call> calls(int count, MonthUsage.CallType type, int seconds) {
-        return Collections.nCopies(count, new MonthUsage.Call(type, seconds));
+    private static List<MonthUsage.Call> calls(int count, MonthUsage.CallType type, int seconds, boolean weekend) {
+        return Collections.nCopies(count, new MonthUsage.Call(type, seconds, weekend));
     }
 
-    /** Scenarios where every call lasts whole minutes: seconds and minutes give the same result. */
-    @ParameterizedTest(name = "{0} local x {1}s, {2} long x {3}s, sms={4}, pensioner={5}")
+    @Test
+    void shortWeekendLongDistanceCallsTakeWholeMinutesFromThePackage() {
+        MonthlyBill bill = calculator.calculate(new MonthUsage(calls(10, LONG, 30, true), 0));
+
+        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 10, 0, 0, 0, 0, 0, 0, 35_000));
+    }
+
+    @Test
+    void packageRunsOutEarlierAfterWeekendLongDistanceCalls() {
+        List<MonthUsage.Call> all = new ArrayList<>(calls(100, LONG, 90, true));
+        all.addAll(calls(110, LOCAL, 60, false));
+
+        MonthlyBill bill = calculator.calculate(new MonthUsage(all, 0));
+
+        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 300, 0, 10, 1_500, 0, 0, 0, 36_500));
+    }
+
+    @Test
+    void mixedMonthWithShortCallsOfAllKinds() {
+        List<MonthUsage.Call> all = new ArrayList<>(calls(3, LONG, 45, true));
+        all.add(new MonthUsage.Call(LONG, 125, true));
+        all.addAll(calls(292, LOCAL, 60, false));
+        all.addAll(calls(2, LOCAL, 10, true));
+        all.add(new MonthUsage.Call(LONG, 200, false));
+        all.add(new MonthUsage.Call(ROAMING, 61, false));
+        all.add(new MonthUsage.Call(ROAMING, 30, true));
+
+        MonthlyBill bill = calculator.calculate(new MonthUsage(all, 55));
+
+        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 300, 2, 5, 0, 800, 3_400, 1_000, 40_200));
+    }
+
+    @Test
+    void weekendLongDistanceCallCrossingTheEndOfThePackageIsPaidPartially() {
+        List<MonthUsage.Call> all = new ArrayList<>(calls(299, LOCAL, 60, false));
+        all.add(new MonthUsage.Call(LONG, 150, true));
+
+        MonthlyBill bill = calculator.calculate(new MonthUsage(all, 0));
+
+        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 300, 0, 2, 0, 600, 0, 0, 35_600));
+    }
+
+    @Test
+    void weekendLongDistanceCallThatExactlyExhaustsThePackage() {
+        List<MonthUsage.Call> all = new ArrayList<>(calls(290, LOCAL, 60, false));
+        all.add(new MonthUsage.Call(LONG, 600, true));
+        all.add(new MonthUsage.Call(LONG, 30, true));
+
+        MonthlyBill bill = calculator.calculate(new MonthUsage(all, 0));
+
+        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 300, 0, 1, 0, 300, 0, 0, 35_300));
+    }
+
+    @Test
+    void weekdayLongDistanceCallCrossingTheEndOfThePackageIsPaidPartially() {
+        List<MonthUsage.Call> all = new ArrayList<>(calls(298, LOCAL, 60, false));
+        all.add(new MonthUsage.Call(LONG, 181, false));
+
+        MonthlyBill bill = calculator.calculate(new MonthUsage(all, 0));
+
+        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 300, 0, 2, 0, 800, 0, 0, 35_800));
+    }
+
+    @Test
+    void packageIsSpentInTheOrderCallsWereMade() {
+        List<MonthUsage.Call> longFirst = new ArrayList<>(calls(100, LONG, 60, false));
+        longFirst.addAll(calls(250, LOCAL, 60, false));
+        List<MonthUsage.Call> localFirst = new ArrayList<>(calls(250, LOCAL, 60, false));
+        localFirst.addAll(calls(100, LONG, 60, false));
+
+        assertThat(calculator.calculate(new MonthUsage(longFirst, 0)))
+                .isEqualTo(new MonthlyBill(35_000, 300, 0, 50, 7_500, 0, 0, 0, 42_500));
+        assertThat(calculator.calculate(new MonthUsage(localFirst, 0)))
+                .isEqualTo(new MonthlyBill(35_000, 300, 0, 50, 0, 20_000, 0, 0, 55_000));
+    }
+
+    @Test
+    void weekendLocalCallsAreFreeAndDoNotTouchThePackage() {
+        List<MonthUsage.Call> all = new ArrayList<>(calls(5, LOCAL, 61, true));
+        all.addAll(calls(300, LOCAL, 60, false));
+
+        MonthlyBill bill = calculator.calculate(new MonthUsage(all, 0));
+
+        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 300, 10, 0, 0, 0, 0, 0, 35_000));
+    }
+
+    @Test
+    void roamingDoesNotUseThePackageAndIsCappedAcrossWeekdaysAndWeekends() {
+        List<MonthUsage.Call> all = new ArrayList<>(calls(100, ROAMING, 60, false));
+        all.addAll(calls(40, ROAMING, 60, true));
+        all.addAll(calls(300, LOCAL, 60, false));
+
+        MonthlyBill bill = calculator.calculate(new MonthUsage(all, 0));
+
+        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 300, 0, 140, 0, 0, 150_000, 0, 185_000));
+    }
+
+    @Test
+    void unansweredCallsCostNothing() {
+        List<MonthUsage.Call> all = new ArrayList<>();
+        for (MonthUsage.CallType type : MonthUsage.CallType.values()) {
+            all.addAll(calls(5, type, 0, false));
+            all.addAll(calls(5, type, 0, true));
+        }
+
+        MonthlyBill bill = calculator.calculate(new MonthUsage(all, 0));
+
+        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 0, 0, 0, 0, 0, 0, 0, 35_000));
+    }
+
+    @ParameterizedTest(name = "{1} x {0} {2}s weekend={3}, sms={4}")
     @CsvSource({
-            // local, localSec, long, longSec, sms, pensioner, paidMin, localCost, benefit, longCost, smsCost, total
-            "310, 60,  0, 0,   0,  false, 10, 1500, 0,    0,    0,    36500",
-            "320, 60,  0, 0,   0,  true,  20, 3000, 1500, 0,    0,    36500",
-            "100, 120, 0, 0,   0,  false, 0,  0,    0,    0,    0,    35000",
-            "0,   0,   3, 61,  0,  true,  0,  0,    0,    2400, 0,    37400",
-            "0,   0,   0, 0,   51, false, 0,  0,    0,    0,    200,  35200",
-            "0,   0,   0, 0,   50, false, 0,  0,    0,    0,    0,    35000",
-            "303, 60,  2, 180, 70, true,  3,  450,  225,  2400, 4000, 41625"
+            // type, count, seconds, weekend, sms, package, freeWeekend, paid, local, long, roaming, smsCost, total
+            "LOCAL,         310, 60,  false, 0,  300, 0,  10,  1500, 0,    0,      0,   36500",
+            "LOCAL,         2,   120, true,  0,  0,   4,  0,   0,    0,    0,      0,   35000",
+            "LONG_DISTANCE, 1,   301, false, 0,  6,   0,  0,   0,    0,    0,      0,   35000",
+            "LONG_DISTANCE, 305, 60,  true,  0,  300, 0,  5,   0,    1500, 0,      0,   36500",
+            "ROAMING,       125, 60,  false, 0,  0,   0,  125, 0,    0,    150000, 0,   185000",
+            "ROAMING,       3,   61,  true,  0,  0,   0,  6,   0,    0,    6000,   0,   41000",
+            "LOCAL,         0,   0,   false, 50, 0,   0,  0,   0,    0,    0,      0,   35000",
+            "LOCAL,         0,   0,   false, 51, 0,   0,  0,   0,    0,    0,      200, 35200"
     })
-    void wholeMinuteScenariosAreUnchanged(int local, int localSeconds, int longCalls, int longSeconds, int sms,
-                                          boolean pensioner, long paidMinutes, long localCost, long benefit,
-                                          long longCost, long smsCost, long total) {
-        List<MonthUsage.Call> all = new ArrayList<>(calls(local, MonthUsage.CallType.LOCAL, localSeconds));
-        all.addAll(calls(longCalls, MonthUsage.CallType.LONG_DISTANCE, longSeconds));
+    void singleRuleScenarios(MonthUsage.CallType type, int count, int seconds, boolean weekend, int sms,
+                             long packageUsed, long freeWeekend, long paid, long localCost, long longCost,
+                             long roamingCost, long smsCost, long total) {
+        MonthlyBill bill = calculator.calculate(new MonthUsage(calls(count, type, seconds, weekend), sms));
 
-        assertThat(calculator.calculate(new MonthUsage(all, sms, pensioner)))
-                .isEqualTo(new MonthlyBill(35_000, paidMinutes, localCost, benefit, longCost, smsCost, total));
-    }
-
-    @Test
-    void everyLocalCallIsRoundedBeforeThePackageIsApplied() {
-        // 301 calls of 61 s = 301 x 2 minutes = 602 minutes; 302 are beyond the package
-        MonthlyBill bill = calculator.calculate(new MonthUsage(calls(301, MonthUsage.CallType.LOCAL, 61), 0, false));
-
-        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 302, 45_300, 0, 0, 0, 80_300));
-    }
-
-    @Test
-    void shortCallsEachCountAsAMinute() {
-        List<MonthUsage.Call> all = new ArrayList<>(calls(150, MonthUsage.CallType.LOCAL, 1));
-        all.addAll(calls(200, MonthUsage.CallType.LOCAL, 59));
-
-        MonthlyBill bill = calculator.calculate(new MonthUsage(all, 0, false));
-
-        assertThat(bill.paidLocalMinutes()).isEqualTo(50);
-        assertThat(bill.localCost()).isEqualTo(7_500);
-    }
-
-    @Test
-    void pensionerBenefitAppliesToCorrectlyCountedMinutes() {
-        MonthlyBill bill = calculator.calculate(new MonthUsage(calls(400, MonthUsage.CallType.LOCAL, 30), 0, true));
-
-        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 100, 15_000, 7_500, 0, 0, 42_500));
-    }
-
-    @Test
-    void unansweredCallsAreFree() {
-        MonthlyBill bill = calculator.calculate(new MonthUsage(calls(1_000, MonthUsage.CallType.LOCAL, 0), 0, false));
-
-        assertThat(bill.total()).isEqualTo(35_000);
-    }
-
-    @Test
-    void longDistanceMinutesNeverUseTheLocalPackage() {
-        List<MonthUsage.Call> all = new ArrayList<>(calls(10, MonthUsage.CallType.LONG_DISTANCE, 90));
-        all.addAll(calls(299, MonthUsage.CallType.LOCAL, 45));
-
-        MonthlyBill bill = calculator.calculate(new MonthUsage(all, 0, true));
-
-        assertThat(bill).isEqualTo(new MonthlyBill(35_000, 0, 0, 0, 8_000, 0, 43_000));
+        assertThat(bill).isEqualTo(new MonthlyBill(35_000, packageUsed, freeWeekend, paid, localCost, longCost,
+                roamingCost, smsCost, total));
     }
 }

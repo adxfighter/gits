@@ -1,14 +1,14 @@
 {
   "code" : "T07-v03",
   "status" : "PASSED",
-  "content_hash" : "f227346c2eefab884a9ab818b65e3b66a8497a2a9ecb4b776a02177543163776",
-  "validated_at" : "2026-09-27T16:32:51.604051Z",
+  "content_hash" : "2a9b9bbc1bd45bf73fb40433b23638033add9efa5bbead0be81ba9297106d9ad",
+  "validated_at" : "2026-09-27T18:30:00.411577600Z",
   "validator_version" : 1,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 3,
-    "reference_max_ms" : 4509
+    "reference_max_ms" : 7243
   },
   "checks" : [ {
     "id" : "schema",
@@ -17,7 +17,7 @@
   }, {
     "id" : "files",
     "passed" : true,
-    "details" : "видимых тестов: 2, скрытых: 6"
+    "details" : "видимых тестов: 2, скрытых: 7"
   }, {
     "id" : "forbidden",
     "passed" : true,
@@ -25,7 +25,7 @@
   }, {
     "id" : "sizes",
     "passed" : true,
-    "details" : "условие 1340 символов, starter 72 строк"
+    "details" : "условие 1422 символов, starter 73 строк"
   }, {
     "id" : "no_leak",
     "passed" : true,
@@ -45,10 +45,10 @@
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 4509 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 7243 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,
-    "details" : "f227346c2eefab884a9ab818b65e3b66a8497a2a9ecb4b776a02177543163776"
+    "details" : "2a9b9bbc1bd45bf73fb40433b23638033add9efa5bbead0be81ba9297106d9ad"
   } ]
 }

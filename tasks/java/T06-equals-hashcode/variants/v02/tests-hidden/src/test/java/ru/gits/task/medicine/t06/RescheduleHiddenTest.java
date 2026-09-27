@@ -54,6 +54,19 @@ class RescheduleHiddenTest {
     }
 
     @Test
+    void slotPassedToRescheduleIsNotChanged() {
+        var schedule = new Schedule();
+        var slot = new AppointmentSlot("dr-ivanova", MONDAY_10);
+        schedule.book(slot, "patient-1");
+
+        new RescheduleService(schedule).reschedule(slot, TUESDAY_9);
+
+        assertThat(slot.doctorId()).isEqualTo("dr-ivanova");
+        assertThat(slot.time()).isEqualTo(MONDAY_10);
+        assertThat(schedule.patientAt(slot)).isEmpty();
+    }
+
+    @Test
     void chainOfReschedulesKeepsTheScheduleConsistent() {
         var schedule = new Schedule();
         var service = new RescheduleService(schedule);

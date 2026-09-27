@@ -9,12 +9,19 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
 class StockItemHiddenTest {
+
+    private static final ThreadFactory DAEMON_THREADS = task -> {
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        return thread;
+    };
 
     private static final int BUYERS = 8;
 
@@ -92,7 +99,7 @@ class StockItemHiddenTest {
 
     private static void runConcurrently(int threads, Runnable work) throws Exception {
         var start = new CountDownLatch(1);
-        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        ExecutorService pool = Executors.newFixedThreadPool(threads, DAEMON_THREADS);
         try {
             List<Future<?>> futures = new ArrayList<>();
             for (int t = 0; t < threads; t++) {

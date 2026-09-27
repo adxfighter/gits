@@ -10,6 +10,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -17,6 +18,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class AttendanceStatisticsHiddenTest {
+
+    private static final ThreadFactory DAEMON_THREADS = task -> {
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        return thread;
+    };
 
     private static final int SERVERS = 8;
     private static final List<Integer> LESSON = Collections.nCopies(10, 60);
@@ -60,7 +67,7 @@ class AttendanceStatisticsHiddenTest {
         var statistics = new AttendanceStatistics();
         var writing = new AtomicBoolean(true);
         var inconsistent = new AtomicReference<AttendanceSummary>();
-        ExecutorService methodologist = Executors.newSingleThreadExecutor();
+        ExecutorService methodologist = Executors.newSingleThreadExecutor(DAEMON_THREADS);
         Future<?> reader = methodologist.submit(() -> {
             while (writing.get() && inconsistent.get() == null) {
                 AttendanceSummary summary = statistics.summary();
@@ -124,7 +131,7 @@ class AttendanceStatisticsHiddenTest {
 
     private static void runConcurrently(int threads, ServerWork work) throws Exception {
         var start = new CountDownLatch(1);
-        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        ExecutorService pool = Executors.newFixedThreadPool(threads, DAEMON_THREADS);
         try {
             List<Future<?>> futures = new ArrayList<>();
             for (int t = 0; t < threads; t++) {

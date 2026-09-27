@@ -11,6 +11,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -174,16 +175,54 @@ class LabResultsCollectorHiddenTest {
 
     @Test
     void resultAfterTheTimeoutIsNotAdded() throws Exception {
-        var invitro = lab("invitro");
         var late = lab("helix");
-
-        var report = collector(invitro, late).collect("R-7");
+        var invitro = lab("invitro");
         invitro.answer.complete(new LabResult("HGB", "132 g/L"));
-        LabReport result = report.get(1, TimeUnit.SECONDS);
-        late.answer.complete(new LabResult("GLU", "5.0 mmol/L"));
+        var requested = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        // The client of "gemotest" hands out its (never answered) future only when the test releases it,
+        // so the report is still being collected when the late result of "helix" arrives.
+        Lab slowClient = new Lab() {
+            @Override
+            public String name() {
+                return "gemotest";
+            }
 
-        assertThat(report.join()).isEqualTo(result);
-        assertThat(result.results()).containsOnlyKeys("invitro");
-        assertThat(result.failures()).containsOnlyKeys("helix");
+            @Override
+            public CompletableFuture<LabResult> result(String orderId) {
+                requested.countDown();
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return new CompletableFuture<>();
+            }
+        };
+        var collector = collector(late, invitro, slowClient);
+
+        try {
+            CompletableFuture<LabReport> report = CompletableFuture
+                    .supplyAsync(() -> collector.collect("R-7"), task -> {
+                        Thread caller = new Thread(task, "caller");
+                        caller.setDaemon(true);
+                        caller.start();
+                    })
+                    .thenCompose(Function.identity());
+            assertThat(requested.await(1, TimeUnit.SECONDS)).as("all laboratories are requested").isTrue();
+
+            // Delayed tasks run in trigger order on the thread that also fires completeOnTimeout/orTimeout,
+            // so "helix" answers 150 ms after the request, well after its 100 ms timeout.
+            CompletableFuture.runAsync(() -> late.answer.complete(new LabResult("GLU", "5.0 mmol/L")),
+                    CompletableFuture.delayedExecutor(150, TimeUnit.MILLISECONDS, Runnable::run))
+                    .get(1, TimeUnit.SECONDS);
+            release.countDown();
+
+            LabReport result = report.get(1, TimeUnit.SECONDS);
+            assertThat(result.results()).containsOnlyKeys("invitro");
+            assertThat(result.failures()).isEqualTo(Map.of("helix", "timeout", "gemotest", "timeout"));
+        } finally {
+            release.countDown();
+        }
     }
 }

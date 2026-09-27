@@ -6,7 +6,7 @@ domain: банк
 time_limit_min: 30
 difficulty_params:
   pipeline_ops: 5
-  edge_cases: 3
+  edge_cases: 4
 editable:
   - src/main/java/ru/gits/task/bank/t07/MonthlyStatement.java
 readonly:
@@ -18,6 +18,7 @@ flaky_policy:
   starter_fail_min: 3
 rubric:
   - Месяцы в отчёте идут в хронологическом порядке, в том числе через границу года
+  - Операции группируются по году и месяцу (YearMonth), одноимённые месяцы разных лет не сливаются
   - Месяц без операций и месяц без списаний не приводят к исключению
   - Крупнейшее списание возвращается как Optional, без get() на пустом Optional
   - Сравнение сумм BigDecimal не зависит от scale

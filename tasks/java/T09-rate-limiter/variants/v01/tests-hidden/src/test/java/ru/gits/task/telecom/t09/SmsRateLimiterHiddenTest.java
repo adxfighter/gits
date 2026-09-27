@@ -23,7 +23,7 @@ class SmsRateLimiterHiddenTest {
         drain(limiter);
 
         int sent = 0;
-        for (int i = 0; i < 40; i++) {  // a request every 1.5 s for 60 s
+        for (int i = 0; i < 41; i++) {  // a request every 1.5 s for 61.5 s: 30.75 tokens
             now.addAndGet(1_500_000_000L);
             if (limiter.tryAcquire()) {
                 sent++;
@@ -50,7 +50,7 @@ class SmsRateLimiterHiddenTest {
         var limiter = new SmsRateLimiter(10, 7, now::get);
         drain(limiter);
 
-        for (int i = 0; i < 600; i++) {  // polled every 100 ms for a minute
+        for (int i = 0; i < 610; i++) {  // polled every 100 ms for 61 s: 7.1 tokens
             now.addAndGet(TimeUnit.MILLISECONDS.toNanos(100));
             limiter.available();
         }
@@ -91,8 +91,8 @@ class SmsRateLimiterHiddenTest {
 
         now.addAndGet(TimeUnit.MILLISECONDS.toNanos(1_700));
         assertThat(limiter.tryAcquire()).isTrue();
-        now.addAndGet(TimeUnit.MILLISECONDS.toNanos(300));
-        assertThat(limiter.tryAcquire()).as("0.7 left + 0.3 new").isTrue();
+        now.addAndGet(TimeUnit.MILLISECONDS.toNanos(350));
+        assertThat(limiter.tryAcquire()).as("0.7 left + 0.35 new").isTrue();
         assertThat(limiter.tryAcquire()).isFalse();
     }
 }

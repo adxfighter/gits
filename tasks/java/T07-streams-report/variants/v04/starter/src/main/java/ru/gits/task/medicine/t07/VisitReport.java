@@ -19,19 +19,21 @@ public final class VisitReport {
                 .filter(visit -> !visit.date().isBefore(from) && visit.date().isBefore(to))
                 .collect(Collectors.groupingBy(Visit::patientId, TreeMap::new, Collectors.toList()));
 
+        Map<String, Integer> distinctDoctorsByPatient = visits.stream()
+                .collect(Collectors.groupingBy(Visit::patientId,
+                        Collectors.flatMapping(visit -> visit.doctorIds().stream(),
+                                Collectors.collectingAndThen(Collectors.toSet(), doctors -> doctors.size()))));
+
         return byPatient.entrySet().stream()
-                .map(entry -> summary(entry.getKey(), entry.getValue()))
+                .map(entry -> summary(entry.getKey(), entry.getValue(), distinctDoctorsByPatient.get(entry.getKey())))
                 .toList();
     }
 
-    private static PatientSummary summary(String patientId, List<Visit> visits) {
+    private static PatientSummary summary(String patientId, List<Visit> visits, int distinctDoctors) {
         List<String> doctors = visits.stream()
                 .flatMap(visit -> visit.doctorIds().stream())
                 .sorted()
                 .toList();
-        int distinctDoctors = visits.stream()
-                .mapToInt(visit -> visit.doctorIds().size())
-                .sum();
         return new PatientSummary(patientId, visits.size(), doctors, distinctDoctors);
     }
 }

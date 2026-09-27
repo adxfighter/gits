@@ -2,13 +2,13 @@
   "code" : "T06-v04",
   "status" : "PASSED",
   "content_hash" : "2bc010926e97fe0587d547096f9ba515f3b0084fe727e97e92730a0d7ec2a780",
-  "validated_at" : "2026-09-27T16:24:56.414205300Z",
+  "validated_at" : "2026-09-27T18:33:48.085795400Z",
   "validator_version" : 1,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 3,
-    "reference_max_ms" : 4626
+    "reference_max_ms" : 4729
   },
   "checks" : [ {
     "id" : "schema",
@@ -45,7 +45,7 @@
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 4626 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 4729 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,

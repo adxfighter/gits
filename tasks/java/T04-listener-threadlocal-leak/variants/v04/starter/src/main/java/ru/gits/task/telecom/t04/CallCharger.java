@@ -2,6 +2,7 @@ package ru.gits.task.telecom.t04;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
 
 /**
@@ -17,7 +18,8 @@ public final class CallCharger {
 
     /**
      * Charges a call. If a tariff changes while the call is being rated, it is rated once more with the
-     * new tariff.
+     * new tariff, whether the first rating succeeded or failed. Rating rules of a forwarded call charge
+     * the forwarded leg by calling this method again from inside the rater.
      *
      * @param rater rating rules; reads the account from {@link BillingContext}; may throw for calls it
      *              cannot rate
@@ -28,16 +30,27 @@ public final class CallCharger {
         Objects.requireNonNull(rater, "rater");
         BillingContext.enter(call.accountId());
         var tariffChanged = new AtomicBoolean();
-        java.util.function.Consumer<String> listener = tariffCode -> tariffChanged.set(true);
+        Consumer<String> listener = tariffCode -> tariffChanged.set(true);
         tariffs.addListener(listener);
 
-        long charge = rater.applyAsLong(call);
-        if (tariffChanged.get()) {
-            charge = rater.applyAsLong(call);
-        }
+        long charge = rate(call, rater, tariffChanged);
 
         tariffs.removeListener(listener);
         BillingContext.leave();
         return charge;
+    }
+
+    private static long rate(CallRecord call, ToLongFunction<CallRecord> rater, AtomicBoolean tariffChanged) {
+        long charge;
+        try {
+            charge = rater.applyAsLong(call);
+        } catch (RuntimeException failure) {
+            if (!tariffChanged.get()) {
+                throw failure;
+            }
+            // the error may be caused by the old tariff: rate once more with the new one
+            return rater.applyAsLong(call);
+        }
+        return tariffChanged.get() ? rater.applyAsLong(call) : charge;
     }
 }

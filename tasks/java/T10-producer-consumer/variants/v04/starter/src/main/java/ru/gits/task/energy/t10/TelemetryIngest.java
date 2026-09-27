@@ -63,7 +63,6 @@ public final class TelemetryIngest {
 
     private void consume() {
         try {
-            // nothing left to do once the queue is drained
             while (!queue.isEmpty()) {
                 Reading reading = queue.take();
                 handler.accept(reading);

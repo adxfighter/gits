@@ -2,13 +2,13 @@
   "code" : "T04-v03",
   "status" : "PASSED",
   "content_hash" : "999bb4c76758833729b3e2dfda1b81f814ec6ffea0f721f003dcf6bd3c1d810a",
-  "validated_at" : "2026-09-27T16:02:53.220882400Z",
+  "validated_at" : "2026-09-27T19:45:58.349009200Z",
   "validator_version" : 1,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 3,
-    "reference_max_ms" : 4785
+    "reference_max_ms" : 3913
   },
   "checks" : [ {
     "id" : "schema",
@@ -45,7 +45,7 @@
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 4785 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 3913 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,

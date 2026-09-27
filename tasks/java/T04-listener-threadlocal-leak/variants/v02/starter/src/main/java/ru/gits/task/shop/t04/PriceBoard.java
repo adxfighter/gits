@@ -6,7 +6,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Shared board of current prices; notifies listeners about changes. Owned by another team.
- * Listeners are removed by {@code equals}, which for lambdas and method references is identity.
  */
 public final class PriceBoard {
 
@@ -16,7 +15,11 @@ public final class PriceBoard {
         listeners.add(Objects.requireNonNull(listener, "listener"));
     }
 
-    /** @return whether the listener was registered */
+    /**
+     * Removes a previously added listener.
+     *
+     * @return whether the listener was registered
+     */
     public boolean removeListener(PriceListener listener) {
         return listeners.remove(listener);
     }

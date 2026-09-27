@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -120,6 +121,45 @@ class CarrierOrderLimiterHiddenTest {
 
         assertThatThrownBy(() -> limiter.tryAcquire("cdek", 0)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> limiter.retryAfterNanos("cdek", -1)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void stalledCarrierDoesNotBlockOtherCarriers() {
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+            CountDownLatch stalled = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            // the clock hangs for the thread serving the slow carrier, i.e. inside its bucket
+            var limiter = new CarrierOrderLimiter(10, 3, () -> {
+                if (Thread.currentThread().getName().equals("slow-carrier")) {
+                    stalled.countDown();
+                    try {
+                        release.await();
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                return now.get();
+            });
+            assertThat(limiter.tryAcquire("cdek", 1)).isTrue();
+            assertThat(limiter.tryAcquire("pek", 1)).isTrue();
+
+            Thread slow = new Thread(() -> limiter.tryAcquire("cdek", 2), "slow-carrier");
+            slow.setDaemon(true);
+            AtomicBoolean fastGranted = new AtomicBoolean();
+            Thread fast = new Thread(() -> fastGranted.set(limiter.tryAcquire("pek", 2)), "fast-carrier");
+            fast.setDaemon(true);
+            try {
+                slow.start();
+                assertThat(stalled.await(5, TimeUnit.SECONDS)).as("slow carrier reads the clock").isTrue();
+                fast.start();
+                fast.join(2_000);
+                assertThat(fast.isAlive()).as("another carrier waits for the stalled one").isFalse();
+                assertThat(fastGranted).isTrue();
+            } finally {
+                release.countDown();
+            }
+            slow.join(5_000);
+        });
     }
 
     @Test

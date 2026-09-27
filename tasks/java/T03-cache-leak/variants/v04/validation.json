@@ -2,13 +2,13 @@
   "code" : "T03-v04",
   "status" : "PASSED",
   "content_hash" : "bca7f176bcee8c51ce4f1fddee35082c3cade1a352f0168c06c2af884828090f",
-  "validated_at" : "2026-09-27T15:56:29.043376100Z",
+  "validated_at" : "2026-09-27T19:45:00.584642500Z",
   "validator_version" : 1,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 3,
-    "reference_max_ms" : 4399
+    "reference_max_ms" : 3828
   },
   "checks" : [ {
     "id" : "schema",
@@ -45,7 +45,7 @@
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 4399 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 3828 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,

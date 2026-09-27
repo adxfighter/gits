@@ -10,6 +10,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -17,6 +18,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class ConsumptionAggregatorHiddenTest {
+
+    private static final ThreadFactory DAEMON_THREADS = task -> {
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        return thread;
+    };
 
     private static final int CONCENTRATORS = 16;
     private static final int METERS = 32;
@@ -62,7 +69,7 @@ class ConsumptionAggregatorHiddenTest {
         var aggregator = new ConsumptionAggregator();
         var writing = new AtomicBoolean(true);
         var failure = new AtomicReference<Throwable>();
-        ExecutorService dispatcher = Executors.newSingleThreadExecutor();
+        ExecutorService dispatcher = Executors.newSingleThreadExecutor(DAEMON_THREADS);
         Future<?> reader = dispatcher.submit(() -> {
             while (writing.get()) {
                 try {
@@ -103,8 +110,18 @@ class ConsumptionAggregatorHiddenTest {
         Map<String, Long> snapshot = aggregator.snapshot();
         aggregator.add(new MeterReading("M-1", 100, 2));
 
-        assertThat(snapshot).containsEntry("M-1", 100L);
-        assertThatThrownBy(() -> snapshot.put("M-2", 1L)).isInstanceOf(UnsupportedOperationException.class);
+        assertThat(snapshot).containsExactlyEntriesOf(Map.of("M-1", 100L));
+
+        try {
+            snapshot.put("M-1", 999L);
+            snapshot.put("M-2", 1L);
+        } catch (UnsupportedOperationException readOnlySnapshot) {
+            // a read-only snapshot is fine too
+        }
+        assertThat(aggregator.totalFor("M-1")).isEqualTo(200L);
+        assertThat(aggregator.totalFor("M-2")).isZero();
+        assertThat(aggregator.meterCount()).isEqualTo(1);
+        assertThat(aggregator.snapshot()).containsExactlyEntriesOf(Map.of("M-1", 200L));
     }
 
     @Test
@@ -128,7 +145,7 @@ class ConsumptionAggregatorHiddenTest {
 
     private static void runConcurrently(int threads, ThreadWork work) throws Exception {
         var start = new CountDownLatch(1);
-        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        ExecutorService pool = Executors.newFixedThreadPool(threads, DAEMON_THREADS);
         try {
             List<Future<?>> futures = new ArrayList<>();
             for (int t = 0; t < threads; t++) {

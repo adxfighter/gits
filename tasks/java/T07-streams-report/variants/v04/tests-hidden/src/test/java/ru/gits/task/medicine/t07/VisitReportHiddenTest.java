@@ -66,6 +66,20 @@ class VisitReportHiddenTest {
     }
 
     @Test
+    void doctorsOutsideThePeriodAreNotCounted() {
+        List<PatientSummary> report = new VisitReport().summarize(List.of(
+                new Visit("v1", "P-1", LocalDate.of(2026, 1, 15), List.of("D-cardio", "D-neuro")),
+                new Visit("v2", "P-1", LocalDate.of(2026, 2, 28), List.of("D-surgeon")),
+                new Visit("v3", "P-1", LocalDate.of(2026, 3, 10), List.of("D-therapist")),
+                new Visit("v4", "P-1", LocalDate.of(2026, 4, 2), List.of("D-oculist")),
+                new Visit("v5", "P-2", LocalDate.of(2026, 3, 11), List.of("D-therapist"))), FROM, TO);
+
+        assertThat(report).containsExactly(
+                new PatientSummary("P-1", 1, List.of("D-therapist"), 1),
+                new PatientSummary("P-2", 1, List.of("D-therapist"), 1));
+    }
+
+    @Test
     void noVisitsInThePeriodGiveAnEmptyReport() {
         assertThat(new VisitReport().summarize(List.of(
                 new Visit("v1", "P-1", LocalDate.of(2026, 2, 1), List.of("D-1"))), FROM, TO)).isEmpty();

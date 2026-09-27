@@ -44,6 +44,22 @@ class PatientCardCacheHiddenTest {
     }
 
     @Test
+    void recentlyOpenedCardIsNotEvictedBeforeAnIdleOne() {
+        var cache = new PatientCardCache(registry, 2);
+        cache.card("P-1");
+        cache.card("P-2");
+        cache.card("P-1");
+        cache.card("P-3");
+
+        loads.clear();
+        cache.card("P-1");
+        cache.card("P-3");
+        cache.card("P-2");
+
+        assertThat(loads).containsExactly("P-2");
+    }
+
+    @Test
     void patientSeenByManyDoctorsStaysCached() {
         var cache = new PatientCardCache(registry, 50);
         cache.card("FREQUENT");

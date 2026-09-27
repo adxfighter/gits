@@ -11,33 +11,38 @@ import org.junit.jupiter.api.Test;
 class ElectricityBillCalculatorVisibleTest {
 
     private static final YearMonth JANUARY = YearMonth.of(2026, 1);
-    private static final Customer CITY = new Customer("40-001", false);
 
     private final ElectricityBillCalculator calculator = new ElectricityBillCalculator();
 
-    @Test
-    void dayConsumptionWithinTheSocialNorm() {
-        var readings = List.of(new HourlyReading(LocalDateTime.of(2026, 1, 10, 10, 0), 5));
-
-        assertThat(calculator.calculate(CITY, readings, JANUARY))
-                .isEqualTo(new ElectricityBill(5, 0, 2_560, 0, 12_000, 14_560));
+    private static HourlyReading reading(int day, int hour, int kwh) {
+        return new HourlyReading(LocalDateTime.of(2026, 1, day, hour, 0), kwh);
     }
 
     @Test
-    void nightConsumptionIsCheaper() {
-        var readings = List.of(new HourlyReading(LocalDateTime.of(2026, 1, 10, 2, 0), 10));
+    void singlePlanWithinTheSocialNorm() {
+        var customer = new Customer("40-001", TariffPlan.SINGLE, false, false);
 
-        assertThat(calculator.calculate(CITY, readings, JANUARY))
-                .isEqualTo(new ElectricityBill(0, 10, 2_560, 0, 12_000, 14_560));
+        // 5 kWh x 5.60 x 0.8
+        assertThat(calculator.calculate(customer, List.of(reading(10, 10, 5)), JANUARY))
+                .isEqualTo(new ElectricityBill(0, 0, 5, 2_240, 0, 12_000, 14_240));
     }
 
     @Test
-    void consumptionAboveTheSocialNormPaysTheFullPrice() {
-        var readings = List.of(
-                new HourlyReading(LocalDateTime.of(2026, 1, 5, 10, 0), 100),
-                new HourlyReading(LocalDateTime.of(2026, 1, 5, 11, 0), 100));
+    void twoZonePlanNightHour() {
+        var customer = new Customer("40-002", TariffPlan.TWO_ZONE, false, false);
 
-        // 150 kWh x 5.12 + 50 kWh x 6.40
-        assertThat(calculator.calculate(CITY, readings, JANUARY).energyCost()).isEqualTo(108_800);
+        // 10 kWh x 3.20 x 0.8
+        assertThat(calculator.calculate(customer, List.of(reading(10, 2, 10)), JANUARY))
+                .isEqualTo(new ElectricityBill(10, 0, 0, 2_560, 0, 15_000, 17_560));
+    }
+
+    @Test
+    void threeZonePlanPeakAndHalfPeakAboveTheSocialNorm() {
+        var customer = new Customer("40-003", TariffPlan.THREE_ZONE, false, false);
+        var readings = List.of(reading(10, 12, 100), reading(10, 8, 100));
+
+        // 08:00 peak: 100 x 7.80 x 0.8; 12:00 half-peak: 50 x 5.60 x 0.8 + 50 x 5.60
+        assertThat(calculator.calculate(customer, readings, JANUARY))
+                .isEqualTo(new ElectricityBill(0, 100, 100, 112_800, 0, 15_000, 127_800));
     }
 }

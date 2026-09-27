@@ -1,54 +1,162 @@
 package ru.gits.task.shop.t05;
 
 /**
- * Calculates the price of an order following the commercial rules:
- * items total, then the volume discount, then the promo code, then delivery.
+ * Calculates the price of an order. Legacy code: extended many times since the first release.
  */
 public class OrderPriceCalculator {
-
-    private static final int VOLUME_DISCOUNT_UNITS = 10;
-    private static final int VOLUME_DISCOUNT_PERCENT = 5;
-    private static final long FREE_DELIVERY_FROM = 300_000;
-    private static final long COURIER_FEE = 30_000;
-    private static final long MINUS500_THRESHOLD = 300_000;
-    private static final long MINUS500_AMOUNT = 50_000;
 
     public PriceBreakdown calculate(Order order) {
         long itemsTotal = 0;
         int units = 0;
-        for (Order.Line line : order.lines()) {
-            itemsTotal += line.priceKopecks() * line.quantity();
-            units += line.quantity();
+        for (int i = 0; i < order.lines().size(); i++) {
+            Order.Line line = order.lines().get(i);
+            long price = line.priceKopecks();
+            int qty = line.quantity();
+            itemsTotal = itemsTotal + price * qty;
+            if (price > 0) {
+                units = units + qty;
+            }
+        }
+        if (units == 0) {
+            return new PriceBreakdown(itemsTotal, 0, 0, 0, itemsTotal);
         }
 
-        long volumeDiscount = units >= VOLUME_DISCOUNT_UNITS ? percent(itemsTotal, VOLUME_DISCOUNT_PERCENT) : 0;
-        long afterVolume = itemsTotal - volumeDiscount;
-
-        String promo = order.promoCode() == null ? "" : order.promoCode();
-        long promoDiscount = promoDiscount(promo, afterVolume);
-        long afterDiscounts = afterVolume - promoDiscount;
-
-        long delivery = promo.equals("FREESHIP") ? 0 : deliveryFee(order.delivery(), afterDiscounts);
-        return new PriceBreakdown(itemsTotal, volumeDiscount, promoDiscount, delivery, afterDiscounts + delivery);
-    }
-
-    private static long promoDiscount(String promo, long amount) {
-        return switch (promo) {
-            case "SALE10" -> percent(amount, 10);
-            case "MINUS500" -> amount >= MINUS500_THRESHOLD ? MINUS500_AMOUNT : 0;
-            default -> 0;  // FREESHIP affects delivery only; unknown codes are ignored
-        };
-    }
-
-    private static long deliveryFee(Order.Delivery delivery, long amount) {
-        if (delivery == Order.Delivery.PICKUP) {
-            return 0;
+        String promo = order.promoCode();
+        if (promo == null) {
+            promo = "";
         }
-        return amount < FREE_DELIVERY_FROM ? COURIER_FEE : 0;
-    }
 
-    /** Percentage rounded half up to whole kopecks. */
-    private static long percent(long amount, int percent) {
-        return (amount * percent + 50) / 100;
+        long volumeDiscount = 0;
+        long promoDiscount = 0;
+        long delivery = 0;
+        long total = itemsTotal;
+
+        if (order.delivery() == Order.Delivery.COURIER) {
+            if (units >= 10) {
+                volumeDiscount = (itemsTotal * 5 + 50) / 100;
+                total = itemsTotal - volumeDiscount;
+            }
+            if (promo.equals("SALE10")) {
+                promoDiscount = (total * 10 + 50) / 100;
+                total = total - promoDiscount;
+                if (total < 300000) {
+                    delivery = 30000;
+                } else {
+                    delivery = 0;
+                }
+            } else if (promo.equals("MINUS500")) {
+                if (total >= 300000) {
+                    promoDiscount = 50000;
+                } else {
+                    promoDiscount = 0;
+                }
+                total = total - promoDiscount;
+                if (total < 300000) {
+                    delivery = 30000;
+                } else {
+                    delivery = 0;
+                }
+            } else if (promo.equals("FREESHIP")) {
+                promoDiscount = 0;
+                delivery = 0;
+            } else {
+                promoDiscount = 0;
+                if (total < 300000) {
+                    delivery = 30000;
+                } else {
+                    delivery = 0;
+                }
+            }
+        } else if (order.delivery() == Order.Delivery.POST) {
+            if (promo.equals("SALE10")) {
+                if (units >= 10) {
+                    volumeDiscount = (itemsTotal * 5 + 50) / 100;
+                    total = itemsTotal - volumeDiscount;
+                }
+                promoDiscount = (total * 10 + 50) / 100;
+                total = total - promoDiscount;
+                if (total < 500000) {
+                    long postPercent = (total * 3 + 50) / 100;
+                    delivery = 15000 + postPercent;
+                } else {
+                    delivery = 0;
+                }
+            } else if (promo.equals("MINUS500")) {
+                if (units >= 10) {
+                    volumeDiscount = (itemsTotal * 5 + 50) / 100;
+                    total = itemsTotal - volumeDiscount;
+                }
+                if (total >= 300000) {
+                    promoDiscount = 50000;
+                } else {
+                    promoDiscount = 0;
+                }
+                total = total - promoDiscount;
+                if (total < 500000) {
+                    long postPercent = (total * 3 + 50) / 100;
+                    delivery = 15000 + postPercent;
+                } else {
+                    delivery = 0;
+                }
+            } else if (promo.equals("FREESHIP")) {
+                if (units >= 10) {
+                    volumeDiscount = (itemsTotal * 5 + 50) / 100;
+                    total = itemsTotal - volumeDiscount;
+                }
+                promoDiscount = 0;
+                delivery = 0;
+            } else {
+                if (units >= 10) {
+                    volumeDiscount = (itemsTotal * 5 + 50) / 100;
+                    total = itemsTotal - volumeDiscount;
+                }
+                promoDiscount = 0;
+                if (total < 500000) {
+                    long postPercent = (total * 3 + 50) / 100;
+                    delivery = 15000 + postPercent;
+                } else {
+                    delivery = 0;
+                }
+            }
+        } else {
+            if (promo.equals("SALE10")) {
+                if (units >= 10) {
+                    volumeDiscount = (itemsTotal * 5 + 50) / 100;
+                    total = itemsTotal - volumeDiscount;
+                }
+                promoDiscount = (total * 10 + 50) / 100;
+                total = total - promoDiscount;
+                delivery = 0;
+            } else if (promo.equals("MINUS500")) {
+                if (units >= 10) {
+                    volumeDiscount = (itemsTotal * 5 + 50) / 100;
+                    total = itemsTotal - volumeDiscount;
+                }
+                if (total >= 300000) {
+                    promoDiscount = 50000;
+                } else {
+                    promoDiscount = 0;
+                }
+                total = total - promoDiscount;
+                delivery = 0;
+            } else if (promo.equals("FREESHIP")) {
+                if (units >= 10) {
+                    volumeDiscount = (itemsTotal * 5 + 50) / 100;
+                    total = itemsTotal - volumeDiscount;
+                }
+                promoDiscount = 0;
+                delivery = 0;
+            } else {
+                if (units >= 10) {
+                    volumeDiscount = (itemsTotal * 5 + 50) / 100;
+                    total = itemsTotal - volumeDiscount;
+                }
+                promoDiscount = 0;
+                delivery = 0;
+            }
+        }
+
+        total = total + delivery;
+        return new PriceBreakdown(itemsTotal, volumeDiscount, promoDiscount, delivery, total);
     }
 }

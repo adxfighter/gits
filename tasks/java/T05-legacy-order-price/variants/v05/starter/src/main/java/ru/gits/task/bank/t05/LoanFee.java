@@ -4,7 +4,7 @@ package ru.gits.task.bank.t05;
  * Itemised issuance fee, kopecks.
  *
  * @param baseFee    fee at the rate, before discounts
- * @param commission fee after discounts and the min/max limits
+ * @param commission issuance commission charged by the bank
  * @param insurance  insurance charge
  * @param option     early repayment option charge
  * @param total      amount charged

@@ -9,12 +9,19 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
 class PaymentStatisticsHiddenTest {
+
+    private static final ThreadFactory DAEMON_THREADS = task -> {
+        Thread thread = new Thread(task);
+        thread.setDaemon(true);
+        return thread;
+    };
 
     private static final int THREADS = 4;
     private static final int PAYMENTS_PER_THREAD = 50_000;
@@ -67,7 +74,7 @@ class PaymentStatisticsHiddenTest {
             }
         });
 
-        ExecutorService monitoring = Executors.newSingleThreadExecutor();
+        ExecutorService monitoring = Executors.newSingleThreadExecutor(DAEMON_THREADS);
         try {
             assertThat(monitoring.submit(statistics::processedCount).get(5, TimeUnit.SECONDS)).isEqualTo(THREADS * 10_000);
         } finally {
@@ -97,7 +104,7 @@ class PaymentStatisticsHiddenTest {
 
     private static void runConcurrently(int threads, Runnable work) throws Exception {
         var start = new CountDownLatch(1);
-        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        ExecutorService pool = Executors.newFixedThreadPool(threads, DAEMON_THREADS);
         try {
             List<Future<?>> futures = new ArrayList<>();
             for (int t = 0; t < threads; t++) {

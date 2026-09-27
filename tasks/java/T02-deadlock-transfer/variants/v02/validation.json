@@ -2,13 +2,13 @@
   "code" : "T02-v02",
   "status" : "PASSED",
   "content_hash" : "5e5260b03b20360227705eb95127e5551bed9ed86ad436aa633878b2cf0bdc0e",
-  "validated_at" : "2026-09-27T15:48:22.340346500Z",
+  "validated_at" : "2026-09-27T19:43:10.092628300Z",
   "validator_version" : 1,
   "runs" : {
     "requested" : 20,
     "reference_passed" : 20,
     "starter_failed" : 20,
-    "reference_max_ms" : 5009
+    "reference_max_ms" : 3998
   },
   "checks" : [ {
     "id" : "schema",
@@ -45,7 +45,7 @@
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 5009 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 3998 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,

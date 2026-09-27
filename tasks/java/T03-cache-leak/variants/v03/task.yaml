@@ -7,7 +7,7 @@ time_limit_min: 20
 difficulty_params:
   eviction: capacity
   ttl: false
-  loc: 120
+  loc: 96
 editable:
   - src/main/java/ru/gits/task/bank/t03/ExchangeRateCache.java
 readonly:

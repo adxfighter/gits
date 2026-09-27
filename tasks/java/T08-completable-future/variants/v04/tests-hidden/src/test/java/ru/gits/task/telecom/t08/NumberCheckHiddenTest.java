@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -107,15 +108,43 @@ class NumberCheckHiddenTest {
 
     @Test
     void eachStepHasItsOwnTimeout() throws Exception {
-        CompletableFuture<Verdict> verdict = verify("+79123456789");
+        // Each step takes 120 ms of a 200 ms step timeout; together they exceed it.
+        CompletableFuture<Verdict> verdict = new NumberCheck(registry, fraud, countingExecutor, Duration.ofMillis(200))
+                .verify("+79123456789");
         awaitCalls(1);
-        Thread.sleep(55);
+        Thread.sleep(120);
         operatorAnswer.complete("MTS");
         awaitCalls(2);
-        Thread.sleep(55);
+        Thread.sleep(120);
         fraudAnswer.complete(true);
 
         assertThat(verdict.get(2, TimeUnit.SECONDS)).isEqualTo(new Verdict("79123456789", "MTS", true));
+    }
+
+    @Test
+    void waitingForAnswersDoesNotOccupyTheExecutor() throws Exception {
+        ExecutorService singleThread = Executors.newSingleThreadExecutor(task -> {
+            Thread thread = new Thread(task, POOL_THREAD);
+            thread.setDaemon(true);
+            return thread;
+        });
+        try {
+            CompletableFuture<Verdict> verdict = new NumberCheck(registry, fraud, singleThread, Duration.ofSeconds(5))
+                    .verify("+79123456789");
+            awaitCalls(1);
+
+            CountDownLatch otherTaskRan = new CountDownLatch(1);
+            singleThread.execute(otherTaskRan::countDown);
+            assertThat(otherTaskRan.await(1, TimeUnit.SECONDS))
+                    .as("another task of the executor runs while the registry is silent")
+                    .isTrue();
+
+            operatorAnswer.complete("MTS");
+            fraudAnswer.complete(false);
+            assertThat(verdict.get(2, TimeUnit.SECONDS)).isEqualTo(new Verdict("79123456789", "MTS", false));
+        } finally {
+            singleThread.shutdownNow();
+        }
     }
 
     @Test
@@ -130,7 +159,7 @@ class NumberCheckHiddenTest {
     }
 
     private void awaitCalls(int calls) throws InterruptedException {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (callerThreads.size() < calls && System.nanoTime() < deadline) {
             Thread.sleep(2);
         }

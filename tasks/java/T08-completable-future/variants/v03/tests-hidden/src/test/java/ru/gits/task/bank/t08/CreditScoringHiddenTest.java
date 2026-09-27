@@ -6,7 +6,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import org.junit.jupiter.api.Test;
 
@@ -94,18 +96,54 @@ class CreditScoringHiddenTest {
 
     @Test
     void answerAfterTheTimeoutIsNotCounted() throws Exception {
-        var nbki = new ManualBureau("nbki");
-        var okb = new ManualBureau("okb");
         var late = new ManualBureau("equifax");
-
-        var decision = new CreditScoring(List.of(nbki, okb, late), TIMEOUT, 650).decide("A-5");
+        var nbki = new ManualBureau("nbki");
         nbki.answer.complete(700);
-        okb.answer.complete(700);
-        Decision result = decision.get(1, TimeUnit.SECONDS);
-        late.answer.complete(300);
+        var requested = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        // The client of "okb" hands out its (never answered) future only when the test releases it,
+        // so the decision is still being made when the late answer of "equifax" arrives.
+        CreditBureau slowClient = new CreditBureau() {
+            @Override
+            public String name() {
+                return "okb";
+            }
 
-        assertThat(result).isEqualTo(new Decision(Decision.Outcome.APPROVED, Map.of("nbki", 700, "okb", 700)));
-        assertThat(decision.join()).isEqualTo(result);
+            @Override
+            public CompletableFuture<Integer> score(String applicantId) {
+                requested.countDown();
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return new CompletableFuture<>();
+            }
+        };
+        var scoring = new CreditScoring(List.of(late, nbki, slowClient), TIMEOUT, 650);
+
+        try {
+            CompletableFuture<Decision> decision = CompletableFuture
+                    .supplyAsync(() -> scoring.decide("A-5"), task -> {
+                        Thread caller = new Thread(task, "caller");
+                        caller.setDaemon(true);
+                        caller.start();
+                    })
+                    .thenCompose(Function.identity());
+            assertThat(requested.await(1, TimeUnit.SECONDS)).as("all bureaus are requested").isTrue();
+
+            // Delayed tasks run in trigger order on the thread that also fires completeOnTimeout/orTimeout,
+            // so "equifax" answers 150 ms after the request, well after its 100 ms timeout.
+            CompletableFuture.runAsync(() -> late.answer.complete(300),
+                    CompletableFuture.delayedExecutor(150, TimeUnit.MILLISECONDS, Runnable::run))
+                    .get(1, TimeUnit.SECONDS);
+            release.countDown();
+
+            assertThat(decision.get(1, TimeUnit.SECONDS)).isEqualTo(new Decision(Decision.Outcome.MANUAL_REVIEW,
+                    Map.of("nbki", 700)));
+        } finally {
+            release.countDown();
+        }
     }
 
     @Test

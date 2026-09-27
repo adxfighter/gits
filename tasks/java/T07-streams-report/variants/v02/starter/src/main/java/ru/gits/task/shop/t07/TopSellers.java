@@ -23,7 +23,6 @@ public final class TopSellers {
         Map<String, Integer> unitsBySku = sales.stream()
                 .collect(Collectors.toMap(Sale::sku, Sale::units, Integer::sum));
 
-        // units -> sku, kept sorted by units
         TreeMap<Integer, String> ranking = unitsBySku.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey,
                         (first, second) -> second, TreeMap::new));

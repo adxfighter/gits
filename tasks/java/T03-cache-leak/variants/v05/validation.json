@@ -1,14 +1,14 @@
 {
   "code" : "T03-v05",
   "status" : "PASSED",
-  "content_hash" : "478f61f6fc1a48acd9c1ecf8957581498b76671c7d71a163eb5bcf9e82132d5d",
-  "validated_at" : "2026-09-27T15:56:37.912319400Z",
+  "content_hash" : "c926146e629afe15343b966dc46291e238ee6fd23b999dc7d1ee2093c70d9f42",
+  "validated_at" : "2026-09-27T19:45:14.600469300Z",
   "validator_version" : 1,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 3,
-    "reference_max_ms" : 4739
+    "reference_max_ms" : 4163
   },
   "checks" : [ {
     "id" : "schema",
@@ -45,10 +45,10 @@
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 4739 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 4163 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,
-    "details" : "478f61f6fc1a48acd9c1ecf8957581498b76671c7d71a163eb5bcf9e82132d5d"
+    "details" : "c926146e629afe15343b966dc46291e238ee6fd23b999dc7d1ee2093c70d9f42"
   } ]
 }

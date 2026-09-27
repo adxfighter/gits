@@ -1,41 +1,167 @@
 package ru.gits.task.bank.t05;
 
 /**
- * Calculates the loan issuance fee in the order of the regulation:
- * rate, salary discount, online discount, min/max limits, then insurance and the option on top.
+ * Calculates the loan issuance fee. Legacy code, extended by several teams.
  */
 public class LoanFeeCalculator {
 
-    private static final long REDUCED_RATE_FROM = 300_000_000L;
-    private static final int RATE_PER_MILLE = 15;
-    private static final int REDUCED_RATE_PER_MILLE = 12;
-    private static final int SALARY_DISCOUNT_PERCENT = 50;
-    private static final long ONLINE_DISCOUNT = 30_000;
-    private static final long MIN_COMMISSION = 150_000;
-    private static final long MAX_COMMISSION = 3_000_000;
-    private static final int INSURANCE_PER_MILLE = 5;
-    private static final long EARLY_REPAYMENT_OPTION = 100_000;
-
     public LoanFee calculate(LoanApplication application) {
         long amount = application.amountKopecks();
-        long baseFee = perMille(amount, amount > REDUCED_RATE_FROM ? REDUCED_RATE_PER_MILLE : RATE_PER_MILLE);
+        long baseFee = 0;
+        long commission = 0;
+        long insurance = 0;
+        long option = 0;
+        boolean web = false;
 
-        long commission = baseFee;
+        String segment;
         if (application.salaryClient()) {
-            commission = (commission * SALARY_DISCOUNT_PERCENT + 50) / 100;
+            segment = "SAL";
+        } else {
+            segment = "STD";
         }
+        String channel;
         if (application.online()) {
-            commission -= ONLINE_DISCOUNT;
+            channel = "WEB";
+        } else {
+            channel = "OFC";
         }
-        commission = Math.clamp(commission, MIN_COMMISSION, MAX_COMMISSION);  // limits apply after all discounts
+        String tariff = segment + "_" + channel;
 
-        long insurance = application.insurance() ? perMille(amount, INSURANCE_PER_MILLE) : 0;
-        long option = application.earlyRepaymentOption() ? EARLY_REPAYMENT_OPTION : 0;
-        return new LoanFee(baseFee, commission, insurance, option, commission + insurance + option);
-    }
+        switch (tariff) {
+            case "STD_OFC":
+                // branch office, standard client
+                if (amount > 300000000L) {
+                    baseFee = amount * 12;
+                    baseFee = (baseFee + 500) / 1000;
+                    commission = baseFee;
+                    if (commission < 150000) {
+                        commission = 150000;
+                    }
+                    if (commission > 3000000) {
+                        commission = 3000000;
+                    }
+                    if (application.insurance()) {
+                        long ins = amount * 5;
+                        insurance = (ins + 500) / 1000;
+                    }
+                    if (application.earlyRepaymentOption()) {
+                        option = 200000;
+                    }
+                } else {
+                    baseFee = amount * 15;
+                    baseFee = (baseFee + 500) / 1000;
+                    commission = baseFee;
+                    if (commission < 150000) {
+                        commission = 150000;
+                    }
+                    if (commission > 3000000) {
+                        commission = 3000000;
+                    }
+                    if (application.insurance()) {
+                        long ins = amount * 5;
+                        insurance = (ins + 500) / 1000;
+                    }
+                    if (application.earlyRepaymentOption()) {
+                        option = 100000;
+                    }
+                }
+                break;
 
-    /** Per-mille share rounded half up to whole kopecks. */
-    private static long perMille(long amount, int perMille) {
-        return (amount * perMille + 500) / 1000;
+            case "STD_WEB":
+                // internet bank, standard client
+                if (amount > 300000000L) {
+                    baseFee = amount * 12;
+                    baseFee = (baseFee + 500) / 1000;
+                    commission = baseFee;
+                    commission = commission - 30000;
+                    if (commission < 150000) {
+                        commission = 150000;
+                    }
+                    if (commission > 3000000) {
+                        commission = 3000000;
+                    }
+                    if (application.insurance()) {
+                        long ins = amount * 5;
+                        insurance = (ins + 500) / 1000;
+                    }
+                    if (application.earlyRepaymentOption()) {
+                        option = 200000;
+                    }
+                } else {
+                    baseFee = amount * 15;
+                    baseFee = (baseFee + 500) / 1000;
+                    commission = baseFee;
+                    commission = commission - 30000;
+                    if (commission < 150000) {
+                        commission = 150000;
+                    }
+                    if (commission > 3000000) {
+                        commission = 3000000;
+                    }
+                    if (application.insurance()) {
+                        long ins = amount * 5;
+                        insurance = (ins + 500) / 1000;
+                    }
+                    if (application.earlyRepaymentOption()) {
+                        option = 100000;
+                    }
+                }
+                break;
+
+            case "SAL_WEB":
+                web = true;
+                // salary clients share the office tariff
+            case "SAL_OFC":
+                if (amount > 300000000L) {
+                    baseFee = amount * 12;
+                    baseFee = (baseFee + 500) / 1000;
+                    commission = baseFee * 50;
+                    commission = (commission + 50) / 100;
+                    if (web) {
+                        commission = commission - 30000;
+                    }
+                    if (commission < 150000) {
+                        commission = 150000;
+                    }
+                    if (commission > 3000000) {
+                        commission = 3000000;
+                    }
+                    if (application.insurance()) {
+                        long ins = amount * 4;
+                        insurance = (ins + 500) / 1000;
+                    }
+                    if (application.earlyRepaymentOption()) {
+                        option = 200000;
+                    }
+                } else {
+                    baseFee = amount * 15;
+                    baseFee = (baseFee + 500) / 1000;
+                    commission = baseFee * 50;
+                    commission = (commission + 50) / 100;
+                    if (web) {
+                        commission = commission - 30000;
+                    }
+                    if (commission < 150000) {
+                        commission = 150000;
+                    }
+                    if (commission > 3000000) {
+                        commission = 3000000;
+                    }
+                    if (application.insurance()) {
+                        long ins = amount * 4;
+                        insurance = (ins + 500) / 1000;
+                    }
+                    if (application.earlyRepaymentOption()) {
+                        option = 100000;
+                    }
+                }
+                break;
+
+            default:
+                throw new IllegalStateException("Unknown tariff: " + tariff);
+        }
+
+        long total = commission + insurance + option;
+        return new LoanFee(baseFee, commission, insurance, option, total);
     }
 }

@@ -1,31 +1,32 @@
 package ru.gits.task.energy.t10;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
  * Meter readings from ingestion channels go through a bounded queue to several consumer threads.
  *
- * <p>An empty queue only means "wait": a consumer leaves after it has seen {@code closed}, then no producer
- * inside {@link #submit}, then an empty queue. A producer registers itself before checking {@code closed},
- * so a reading it accepts is in the queue before any consumer can leave.
+ * <p>An empty queue only means "wait": consumers block in {@code take()}. Closing puts one end marker per
+ * consumer behind the accepted readings; the channels have stopped by then, so every reading is ahead of the
+ * markers, and each consumer leaves after taking exactly one marker.
  */
 public final class TelemetryIngest {
 
-    private static final long POLL_MILLIS = 10;
+    /** End marker, compared by identity. */
+    private static final Reading END = new Reading("end-of-stream", Instant.EPOCH, 0);
 
     private final BlockingQueue<Reading> queue;
     private final List<Thread> consumers = new ArrayList<>();
     private final Consumer<Reading> handler;
-    private final AtomicInteger producersInside = new AtomicInteger();
     private volatile boolean closed;
+    private int markersPut;
 
     public TelemetryIngest(int queueCapacity, int consumerCount, Consumer<Reading> handler) {
         if (consumerCount < 1) {
@@ -44,15 +45,10 @@ public final class TelemetryIngest {
     /** Waits for space in the queue. */
     public void submit(Reading reading) throws InterruptedException {
         Objects.requireNonNull(reading, "reading");
-        producersInside.incrementAndGet();
-        try {
-            if (closed) {
-                throw new IllegalStateException("Ingest is closed");
-            }
-            queue.put(reading);
-        } finally {
-            producersInside.decrementAndGet();
+        if (closed) {
+            throw new IllegalStateException("Ingest is closed");
         }
+        queue.put(reading);
     }
 
     /**
@@ -60,9 +56,16 @@ public final class TelemetryIngest {
      *
      * @return true when the consumers finished before the timeout
      */
-    public boolean close(Duration timeout) throws InterruptedException {
+    public synchronized boolean close(Duration timeout) throws InterruptedException {
         closed = true;
         long deadline = System.nanoTime() + timeout.toNanos();
+        // The queue is bounded: a marker waits for space while the consumers keep draining it.
+        while (markersPut < consumers.size()) {
+            if (!queue.offer(END, deadline - System.nanoTime(), TimeUnit.NANOSECONDS)) {
+                return false;
+            }
+            markersPut++;
+        }
         for (Thread consumer : consumers) {
             long left = deadline - System.nanoTime();
             if (left > 0) {
@@ -78,13 +81,11 @@ public final class TelemetryIngest {
     private void consume() {
         try {
             while (true) {
-                // poll with a timeout: another consumer may take the last reading, take() would then block forever
-                Reading reading = queue.poll(POLL_MILLIS, TimeUnit.MILLISECONDS);
-                if (reading != null) {
-                    handle(reading);
-                } else if (closed && producersInside.get() == 0 && queue.isEmpty()) {
+                Reading reading = queue.take();
+                if (reading == END) {
                     return;
                 }
+                handle(reading);
             }
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();

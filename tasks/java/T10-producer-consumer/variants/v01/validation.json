@@ -2,13 +2,13 @@
   "code" : "T10-v01",
   "status" : "PASSED",
   "content_hash" : "0e1362fffe06d604d8ff9c44bfd9290959022468789e0570d4485e141bb65de0",
-  "validated_at" : "2026-09-27T17:36:42.629635800Z",
+  "validated_at" : "2026-09-27T18:56:48.059851700Z",
   "validator_version" : 1,
   "runs" : {
     "requested" : 20,
     "reference_passed" : 20,
     "starter_failed" : 20,
-    "reference_max_ms" : 3761
+    "reference_max_ms" : 5840
   },
   "checks" : [ {
     "id" : "schema",
@@ -45,7 +45,7 @@
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 3761 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 5840 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,

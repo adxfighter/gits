@@ -44,6 +44,8 @@ import ru.gits.core.task.TaskVariantRepository;
 class RunnerTestSupport {
 
     static final String SUM_PATH = "src/main/java/demo/Sum.java";
+    /** A text file the candidate edits (like the warm-up retyping): never compiled or sent to the sandbox. */
+    static final String NOTES_PATH = "src/main/java/demo/Notes.txt";
 
     static final String BUGGY_SUM = """
             package demo;
@@ -138,6 +140,8 @@ class RunnerTestSupport {
             var variant = new TaskVariant(template, template.getCode() + "-v01", TaskKind.TASK, Level.JUNIOR, "bank",
                     "{}", "# Сумма", 20, "0".repeat(64), "{}", now);
             variant.addFile(FileKind.STARTER, SUM_PATH, BUGGY_SUM, true);
+            variant.addFile(FileKind.STARTER, NOTES_PATH, "", true);
+            variant.addFile(FileKind.READONLY, "src/main/java/demo/Sample.txt", "public class Sample {", false);
             variant.addFile(FileKind.VISIBLE_TEST, "src/test/java/demo/SumVisibleTest.java", VISIBLE_TEST, false);
             variant.addFile(FileKind.HIDDEN_TEST, "src/test/java/demo/SumHiddenTest.java", HIDDEN_TEST, false);
             variant.addFile(FileKind.SOLUTION, SUM_PATH, CORRECT_SUM, false);

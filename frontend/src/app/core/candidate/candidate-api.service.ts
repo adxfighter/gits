@@ -7,6 +7,7 @@ import { TelemetryAccepted, TelemetryBatch } from '../telemetry/telemetry.models
 import {
   CandidateView,
   ConsentView,
+  RetypingResult,
   RunAccepted,
   RunView,
   SessionView,
@@ -81,6 +82,13 @@ export class CandidateApi {
   submit(taskId: string, files: Record<string, string>): Observable<RunAccepted> {
     return this.withCsrf(
       this.http.post<RunAccepted>(`${API}/candidate/tasks/${taskId}/submit`, { files }),
+    );
+  }
+
+  /** Warm-up part 1: compares the retyping with the sample; the files are saved first, as for a run. */
+  retyping(taskId: string, files: Record<string, string>): Observable<RetypingResult> {
+    return this.withCsrf(
+      this.http.post<RetypingResult>(`${API}/candidate/tasks/${taskId}/retyping`, { files }),
     );
   }
 

@@ -30,7 +30,7 @@
       <app-session-timer [remainingSeconds]="s.remainingSeconds" [syncedAt]="syncedAt()" (expired)="onTimeOver()" />
     }
     <button type="button" class="btn" [disabled]="closed() || running()" (click)="runTests()" title="Ctrl+Enter">
-      Запустить тесты
+      {{ split() ? 'Проверить перепечатку' : 'Запустить тесты' }}
     </button>
     <button type="button" class="btn btn--primary" [disabled]="closed() || running()" (click)="askSubmit()">
       Отправить решение
@@ -137,7 +137,7 @@
         (saveRequested)="saveNow()"
       />
       <div class="ws__pane-title ws__pane-title--typing" data-testid="typing-title">
-        {{ fileName(calibration()!.typing.path) }} — наберите фрагмент здесь, между тройными кавычками
+        {{ fileName(calibration()!.typing.path) }} — перепечатайте сюда образец целиком (опечатки допустимы)
       </div>
     }
     <app-code-editor
@@ -151,7 +151,7 @@
       (ready)="telemetry.attachEditor($event.editor)"
     />
     <section class="ws__results" aria-label="Результаты">
-      <app-results-panel [run]="run()" />
+      <app-results-panel [run]="run()" [retypingMode]="split()" [retyping]="retyping()" />
     </section>
   </main>
 </div>

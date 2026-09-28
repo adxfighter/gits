@@ -74,6 +74,31 @@ describe('ResultsPanel', () => {
     expect(root.querySelectorAll('[data-testid="test"]')).toHaveLength(0);
   });
 
+  it('shows the retyping check in warm-up part 1 instead of test runs', () => {
+    const fixture = TestBed.createComponent(ResultsPanel);
+    fixture.componentRef.setInput('retypingMode', true);
+    fixture.componentRef.setInput('run', runView({}));
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Проверить перепечатку');
+    expect(root.querySelectorAll('[data-testid="test"]')).toHaveLength(0);
+
+    fixture.componentRef.setInput('retyping', {
+      similarityPercent: 82.4, passed: false, pasteSuspected: false,
+      message: 'Напечатанный текст отличается от первоначального более 5 % (совпадение с образцом — 82,4%).',
+    });
+    fixture.detectChanges();
+    expect(state(root)).toContain('отличается от первоначального более 5 %');
+    expect(root.querySelector('.state--bad')).not.toBeNull();
+
+    fixture.componentRef.setInput('retyping', {
+      similarityPercent: 98.1, passed: true, pasteSuspected: false,
+      message: 'Перепечатка засчитана: текст совпадает с образцом на 98,1%.',
+    });
+    fixture.detectChanges();
+    expect(root.querySelector('.state--ok')).not.toBeNull();
+  });
+
   it('explains a timeout and a runner error', () => {
     expect(state(render(runView({ status: 'TIMEOUT' })).root)).toContain('Превышено время выполнения');
     expect(state(render(runView({ status: 'ERROR' })).root)).toContain('Не удалось выполнить запуск');

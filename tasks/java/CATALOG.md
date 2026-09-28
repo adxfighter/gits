@@ -61,9 +61,9 @@
 | T10-v03 | T10 | банк | senior | java.concurrency.executors, java.concurrency.visibility | producers=4, consumers=2, bounded_queue=true | 2 | 5 | 5916 | 5/5/5/5/4/5 |
 | T10-v04 | T10 | энергетика | senior | java.concurrency.executors, java.concurrency.visibility | producers=2, consumers=4, bounded_queue=true | 2 | 6 | 6298 | 5/5/4/5/4/5 |
 | T10-v05 | T10 | медицина | senior | java.concurrency.executors, java.concurrency.visibility | producers=2, consumers=2, bounded_queue=true | 2 | 6 | 4666 | 5/5/4/5/5/5 |
-| CAL-v01 | CAL | телеком | калибровка | java.basics.strings | fragment_lines=26, short_task=phone | 4 | 0 | 3895 | не оценивается |
-| CAL-v02 | CAL | образование | калибровка | java.basics.strings | fragment_lines=28, short_task=name | 4 | 0 | 4407 | не оценивается |
-| CAL-v03 | CAL | логистика | калибровка | java.basics.strings | fragment_lines=29, short_task=duration | 4 | 0 | 4188 | не оценивается |
+| CAL-v01 | CAL | телеком | калибровка | java.basics.strings | fragment_lines=26, short_task=phone | 3 | 0 | 3761 | не оценивается |
+| CAL-v02 | CAL | образование | калибровка | java.basics.strings | fragment_lines=28, short_task=name | 3 | 0 | 3783 | не оценивается |
+| CAL-v03 | CAL | логистика | калибровка | java.basics.strings | fragment_lines=29, short_task=duration | 3 | 0 | 3777 | не оценивается |
 
 ## Распределение по уровням
 

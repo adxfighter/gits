@@ -3,6 +3,7 @@ package ru.gits.api.session;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -16,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ru.gits.api.telemetry.BeaconTokens;
@@ -162,6 +164,30 @@ public class CandidateTaskService {
         return accepted;
     }
 
+    /**
+     * Checks the warm-up retyping (part 1) on the platform, without the sandbox: similarity with the sample and a
+     * paste into the typing file (docs/api.md). {@code changed} files, if given, are saved first, as for a run.
+     */
+    @Transactional
+    public RetypingCheck.Result checkRetyping(UUID inviteId, UUID sessionTaskId, Map<String, String> changed) {
+        SessionTask task = editableTask(inviteId, sessionTaskId);
+        List<TaskFile> taskFiles = candidateFiles(task);
+        CalibrationFiles retyping = task.getKind() == TaskKind.CALIBRATION
+                ? CalibrationFiles.of(taskFiles).orElse(null) : null;
+        if (retyping == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "В этом задании нет перепечатки");
+        }
+        Map<String, String> code = changed == null || changed.isEmpty()
+                ? TaskCode.current(task.getCurrentCode(), taskFiles)
+                : store(task, changed, clock.instant());
+        List<JsonNode> events = new ArrayList<>();
+        for (TelemetryBatch batch : batches.findBySessionTaskIdOrderBySeq(task.getId())) {
+            readTree(batch.getEvents()).forEach(events::add);
+        }
+        return RetypingCheck.evaluate(retyping.sample().getContent(),
+                code.getOrDefault(retyping.typing().getPath(), ""), retyping.largestPaste(events));
+    }
+
     @Transactional(readOnly = true)
     public RunView runView(UUID inviteId, UUID runId) {
         RunJob job = runs.findByIdAndSessionTaskSessionInviteId(runId, inviteId)
@@ -257,6 +283,14 @@ public class CandidateTaskService {
 
     private List<TaskFile> candidateFiles(SessionTask task) {
         return files.findByVariantIdAndKindIn(task.getVariant().getId(), CANDIDATE_FILES);
+    }
+
+    private static JsonNode readTree(String json) {
+        try {
+            return JSON.readTree(json);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Stored telemetry is not valid JSON", e);
+        }
     }
 
     private static List<StoredTestCase> readTestCases(String json) {

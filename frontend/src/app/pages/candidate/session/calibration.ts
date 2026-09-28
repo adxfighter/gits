@@ -1,8 +1,11 @@
 import { TaskFileView, TaskView } from '../../../core/candidate/candidate.models';
 
-/** Part 1 of the warm-up: the sample and the file it is retyped into (CAL template, tasks/java/CAL-calibration). */
-const REFERENCE_FILE = 'Reference.java';
-const TYPING_FILE = 'Typing.java';
+/**
+ * Part 1 of the warm-up: the sample and the file it is retyped into (CAL template, tasks/java/CAL-calibration).
+ * Both are text files: never compiled, the platform compares them (POST /candidate/tasks/{id}/retyping).
+ */
+const REFERENCE_FILE = 'Sample.txt';
+const TYPING_FILE = 'Typing.txt';
 /** The heading that starts part 2 in the warm-up statement. */
 const PART_2_HEADING = /^##\s*Часть\s*2\b/m;
 

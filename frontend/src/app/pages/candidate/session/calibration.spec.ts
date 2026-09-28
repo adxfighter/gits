@@ -8,7 +8,7 @@ const STATEMENT = `# Разминка перед оценкой
 Этот блок не влияет на оценку.
 
 ## Часть 1. Перепечатайте фрагмент
-В файле \`Reference.java\` находится фрагмент.
+В файле \`Sample.txt\` находится фрагмент.
 
 ## Часть 2. Короткая задача
 Реализуйте метод \`PhoneNumbers.normalize(raw)\`.
@@ -31,8 +31,8 @@ function task(kind: TaskView['kind'], files: TaskFileView[]): TaskView {
 const DIR = 'src/main/java/ru/gits/task/telecom/cal/';
 const FILES = [
   file(DIR + 'PhoneNumbers.java', 'STARTER', true),
-  file(DIR + 'Reference.java', 'STARTER', false),
-  file(DIR + 'Typing.java', 'STARTER', true),
+  file(DIR + 'Sample.txt', 'STARTER', false),
+  file(DIR + 'Typing.txt', 'STARTER', true),
   file('src/test/java/ru/gits/task/telecom/cal/PhoneNumbersTest.java', 'VISIBLE_TEST', false),
 ];
 
@@ -40,8 +40,8 @@ describe('warm-up layout', () => {
   it('puts the sample and the typing file in part 1 and the rest in part 2', () => {
     const layout = calibrationLayout(task('CALIBRATION', FILES))!;
 
-    expect(layout.reference.path).toBe(DIR + 'Reference.java');
-    expect(layout.typing.path).toBe(DIR + 'Typing.java');
+    expect(layout.reference.path).toBe(DIR + 'Sample.txt');
+    expect(layout.typing.path).toBe(DIR + 'Typing.txt');
     expect(layout.others.map((f) => f.path)).toEqual([
       DIR + 'PhoneNumbers.java',
       'src/test/java/ru/gits/task/telecom/cal/PhoneNumbersTest.java',

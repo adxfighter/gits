@@ -8,15 +8,15 @@ difficulty_params:
   fragment_lines: 29
   short_task: duration
 editable:
-  - src/main/java/ru/gits/task/logistics/cal/Typing.java
+  - src/main/java/ru/gits/task/logistics/cal/Typing.txt
   - src/main/java/ru/gits/task/logistics/cal/Durations.java
 readonly:
-  - src/main/java/ru/gits/task/logistics/cal/Reference.java
+  - src/main/java/ru/gits/task/logistics/cal/Sample.txt
 flaky_policy:
   runs: 3
   reference_pass_min: 3
   starter_fail_min: 0
 rubric:
   - Не оценивается — блок используется только для поведенческого профиля
-  - Фрагмент перепечатан без изменений (без учёта пробелов)
+  - Фрагмент перепечатан с совпадением не менее 95% (без учёта пробелов и отступов)
   - Метод части 2 работает по описанным правилам

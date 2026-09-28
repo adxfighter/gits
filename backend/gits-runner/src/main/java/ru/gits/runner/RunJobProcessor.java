@@ -122,6 +122,10 @@ class RunJobProcessor {
         List<SourceFile> tests = new ArrayList<>();
         Set<String> hiddenClasses = new HashSet<>();
         for (TaskFile file : taskFiles) {
+            if (!SourceArchive.isSource(file.getPath())) {
+                // text files (the warm-up retyping) are checked by the platform, not compiled
+                continue;
+            }
             switch (file.getKind()) {
                 case STARTER -> {
                     String content = file.isEditable() ? payload.getOrDefault(file.getPath(), file.getContent())

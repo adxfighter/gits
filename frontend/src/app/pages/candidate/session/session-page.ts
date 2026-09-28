@@ -17,6 +17,7 @@ import { Subscription, concatMap, firstValueFrom, takeWhile, timer } from 'rxjs'
 import { CandidateApi } from '../../../core/candidate/candidate-api.service';
 import {
   FINAL_RUN_STATUSES,
+  RetypingResult,
   RunMode,
   RunView,
   SessionView,
@@ -79,6 +80,7 @@ export class SessionPage implements OnInit {
   private readonly tasks = signal<Record<string, TaskView>>({});
   protected readonly activePath = signal<string | null>(null);
   private readonly runs = signal<Record<string, RunView | null>>({});
+  private readonly retypings = signal<Record<string, RetypingResult>>({});
   protected readonly running = signal(false);
   protected readonly timeOver = signal(false);
   protected readonly notice = signal<string | null>(null);
@@ -120,6 +122,10 @@ export class SessionPage implements OnInit {
     return (id && this.calibrationParts()[id]) || 1;
   });
   protected readonly split = computed(() => !!this.calibration() && this.calibrationPart() === 1);
+  protected readonly retyping = computed(() => {
+    const id = this.currentTaskId();
+    return id ? (this.retypings()[id] ?? null) : null;
+  });
   protected readonly statement = computed(() => {
     const layout = this.calibration();
     return layout ? layout.statement[this.calibrationPart()] : (this.task()?.statementMd ?? '');
@@ -287,8 +293,42 @@ export class SessionPage implements OnInit {
 
   // --- run and submit ----------------------------------------------------------------------------------------------
 
+  /** "Run tests" (Ctrl+Enter); in warm-up part 1 it checks the retyping instead, nothing is run. */
   protected async runTests(): Promise<void> {
+    if (this.split()) {
+      await this.checkRetyping();
+      return;
+    }
     await this.start('RUN');
+  }
+
+  /** Warm-up part 1: the platform compares the retyping with the sample and looks for pastes in the telemetry. */
+  private async checkRetyping(): Promise<void> {
+    const task = this.task();
+    if (!task || this.closed() || this.running()) {
+      return;
+    }
+    const version = this.saver.version(task.id);
+    this.running.set(true);
+    this.notice.set(null);
+    try {
+      // pastes are found in the stored telemetry: send what is buffered first
+      await this.flushTelemetry();
+      const result = await firstValueFrom(this.api.retyping(task.id, this.editor()!.contents(task)));
+      this.saver.markSaved(task.id, version);
+      this.retypings.update((all) => ({ ...all, [task.id]: result }));
+    } catch (error) {
+      if (statusOf(error) === 401) {
+        await this.handleFatal(error);
+        return;
+      }
+      this.notice.set(messageOf(error));
+      if (statusOf(error) === 409) {
+        await this.syncSession();
+      }
+    } finally {
+      this.running.set(false);
+    }
   }
 
   protected askSubmit(): void {

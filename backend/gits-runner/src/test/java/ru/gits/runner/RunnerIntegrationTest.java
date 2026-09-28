@@ -60,6 +60,19 @@ class RunnerIntegrationTest {
     }
 
     @Test
+    void textFilesAreNeverCompiled() throws Exception {
+        UUID task = support.sessionTask();
+        // a retyping full of mistakes must not break the Java part of the task
+        UUID job = support.enqueue(task, RunMode.RUN, Map.of(RunnerTestSupport.SUM_PATH, RunnerTestSupport.BUGGY_SUM,
+                RunnerTestSupport.NOTES_PATH, "public clas Broken {{{ int x = ;"));
+
+        assertThat(support.awaitFinished(job).getStatus()).isEqualTo(RunStatus.DONE);
+        var result = support.result(job);
+        assertThat(result.isCompiled()).isTrue();
+        assertThat(result.getTestsPassed()).isEqualTo(1);
+    }
+
+    @Test
     void submitScoresHiddenTestsWithoutRevealingThem() throws Exception {
         UUID task = support.sessionTask();
         UUID buggy = support.enqueue(task, RunMode.SUBMIT, Map.of(RunnerTestSupport.SUM_PATH, RunnerTestSupport.BUGGY_SUM));

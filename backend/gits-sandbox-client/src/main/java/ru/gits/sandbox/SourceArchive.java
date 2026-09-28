@@ -25,6 +25,14 @@ public final class SourceArchive {
     private SourceArchive() {
     }
 
+    /**
+     * Java sources go to the sandbox; any other task file (a .txt text for the candidate, e.g. the warm-up sample and
+     * the text retyped from it) is shown in the editor but never compiled, run or archived.
+     */
+    public static boolean isSource(String path) {
+        return path.endsWith(".java");
+    }
+
     public static byte[] build(List<SourceFile> files) {
         if (files.isEmpty()) {
             throw new InvalidSourceException("Нет файлов для запуска");

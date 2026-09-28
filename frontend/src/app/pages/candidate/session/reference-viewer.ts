@@ -15,7 +15,7 @@ import type * as Monaco from 'monaco-editor';
 import { MonacoApi, MonacoLoader } from '../../../core/editor/monaco-loader.service';
 
 /**
- * A read-only view of the warm-up sample (Reference.java) above the typing editor. It has its own Monaco editor
+ * A read-only view of the warm-up sample (Sample.txt) above the typing editor. It has its own Monaco editor
  * and model, so the main editor — and the telemetry attached to it — stays the only place where the candidate types.
  */
 @Component({

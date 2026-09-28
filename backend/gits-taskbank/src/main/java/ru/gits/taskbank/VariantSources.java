@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
+import ru.gits.sandbox.SourceArchive;
 import ru.gits.sandbox.SourceFile;
 
 /**
@@ -38,8 +39,9 @@ public record VariantSources(
                 allFiles(directory));
     }
 
+    /** Starter sources sent to the sandbox: Java files only (text files are for the candidate, see SourceArchive). */
     public List<SourceFile> starterFiles() {
-        return toSources(starter);
+        return toSources(javaOnly(starter));
     }
 
     public List<SourceFile> visibleTestFiles() {
@@ -50,11 +52,21 @@ public record VariantSources(
         return toSources(hiddenTests);
     }
 
-    /** Starter with the editable files replaced by the reference solution. */
+    /** Starter with the editable files replaced by the reference solution; Java files only. */
     public List<SourceFile> solvedFiles() {
         Map<String, String> solved = new TreeMap<>(starter);
         solved.putAll(solution);
-        return toSources(solved);
+        return toSources(javaOnly(solved));
+    }
+
+    private static Map<String, String> javaOnly(Map<String, String> files) {
+        Map<String, String> sources = new TreeMap<>();
+        files.forEach((path, content) -> {
+            if (SourceArchive.isSource(path)) {
+                sources.put(path, content);
+            }
+        });
+        return sources;
     }
 
     static String normalise(String text) {

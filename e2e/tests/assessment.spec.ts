@@ -89,10 +89,11 @@ test('истечение времени', async ({ browser }) => {
   sql(`UPDATE assessment_session SET started_at = started_at - interval '91 minutes' WHERE id = '${id}'`);
   await page.reload();
   // the workspace says the time is over; if the server's expiry check (every 30 s) closed the session first,
-  // the page goes straight to the end
+  // the page goes straight to the end — or, when it closed before the reload, the link no longer lets in
   const overlay = page.getByRole('alertdialog');
   const thanks = page.getByRole('heading', { name: 'Спасибо!' });
-  await expect(overlay.or(thanks)).toBeVisible();
+  const closed = page.getByRole('heading', { name: 'Оценка недоступна' });
+  await expect(overlay.or(thanks).or(closed)).toBeVisible();
   if (await overlay.isVisible()) {
     await expect(overlay).toContainText('Время вышло');
     // «Завершить» closes the overdue session as expired, the tasks are submitted as they were

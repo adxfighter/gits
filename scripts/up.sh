@@ -19,6 +19,6 @@ if [[ -f sandbox/java/Dockerfile ]]; then
   docker build -t "$image" sandbox/java
 fi
 
-docker compose up --build -d
+docker compose up --build -d --wait
 docker compose ps
 echo "GITS UI: http://localhost:$(env_value WEB_PORT)"

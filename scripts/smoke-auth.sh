@@ -41,7 +41,7 @@ grep -q 'GITS_CANDIDATE' "$candidate" || fail "no candidate cookie stored"
 expect 200 "$(status "$candidate" GET /candidate/me)" "candidate /me"
 expect 403 "$(status "$candidate" GET /candidate/session)" "no access before consent"
 expect 204 "$(status "$candidate" POST /candidate/consent)" "accept consent"
-expect 404 "$(status "$candidate" GET /candidate/session)" "past consent gate (endpoint arrives in P07)"
+expect 404 "$(status "$candidate" GET /candidate/session)" "past consent gate, no session started yet"
 expect 401 "$(status "$candidate" GET /invites)" "candidate cannot use employer API"
 # Same browser: candidate cookie (path /api/candidate) and employer session must coexist
 expect 200 "$(status "$employer" POST /candidate/enter "{\"token\":\"$token\"}")" "candidate enters in the employer browser"

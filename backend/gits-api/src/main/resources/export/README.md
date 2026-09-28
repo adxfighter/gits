@@ -22,7 +22,7 @@
 | `consentVersion` | версия принятого текста согласия |
 | `preliminaryScore` | предварительный балл 0–100, до психометрической калибровки; `null`, пока не посчитан |
 | `scoreComputedAt` | время расчёта балла |
-| `scorePerTask` | расчёт балла по заданиям: `tasks[]` — `task` (псевдоним), `kind`, `level`, `weight`, `testsCounted`, `testsCountedPassed` (исправляющие тесты, у разминки — тесты части 2), `guardTests`, `guardTestsBroken` (проверки «ничего не сломано»), `codeUnchanged`, `share`, `note` — почему задание 0, хотя тесты проходили (у задания, не проверенного из-за сбоя, — `excluded` без `kind`); в сессиях, не пересчитанных после доработки, — `hiddenTestsPassed`, `hiddenTestsTotal`; у задания, не проверенного из-за сбоя платформы, — `excluded` с пояснением; `note` — пометка о предварительности |
+| `scorePerTask` | расчёт балла по заданиям: `note` — пометка о предварительности; `tasks[]` — `task` (псевдоним), `kind`, `level`, `weight`, `testsCounted`, `testsCountedPassed` (исправляющие тесты, у разминки — тесты части 2), `guardTests`, `guardTestsBroken` (проверки «ничего не сломано»), `codeUnchanged`, `share`, `note` — почему задание 0, хотя тесты проходили; у задания, не проверенного из-за сбоя платформы, — только `task`, `level`, `weight` и `excluded` с пояснением (без `kind`); в сессиях, не пересчитанных после доработки, — `hiddenTestsPassed`, `hiddenTestsTotal` |
 
 ### tasks.jsonl — задания сессий
 | Поле | Смысл |

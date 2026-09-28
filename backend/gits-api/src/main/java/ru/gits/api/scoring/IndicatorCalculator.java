@@ -79,10 +79,11 @@ final class IndicatorCalculator {
                 }
             }
         }
-        List<Integer> pastes = foreignPastes(ordered);
-        int pasted = pastes.stream().mapToInt(Integer::intValue).sum();
-        int largestPaste = pastes.stream().mapToInt(Integer::intValue).max().orElse(0);
-        int externalPastes = (int) pastes.stream().filter(size -> size >= EXTERNAL_PASTE_MIN).count();
+        List<InputEvent> pastes = foreignPastes(ordered);
+        int pasted = pastes.stream().mapToInt(InputEvent::textLength).sum();
+        int largestPaste = pastes.stream().mapToInt(InputEvent::textLength).max().orElse(0);
+        // non-whitespace characters, the threshold the candidate's warning uses
+        int externalPastes = (int) pastes.stream().filter(p -> p.meaningfulLength() >= EXTERNAL_PASTE_MIN).count();
         double pasteRatio = finalCodeChars <= 0 ? 0 : Math.min(1.0, (double) pasted / finalCodeChars);
         double[] focus = focusLoss(ordered);
         double burstMax = burstMax(ordered);
@@ -105,8 +106,8 @@ final class IndicatorCalculator {
      * candidate's own code or the statement — found there at the moment of the paste ({@code ownCode}), or copied
      * or cut in the editor before (moving code around).
      */
-    static List<Integer> foreignPastes(List<InputEvent> ordered) {
-        List<Integer> pastes = new ArrayList<>();
+    static List<InputEvent> foreignPastes(List<InputEvent> ordered) {
+        List<InputEvent> pastes = new ArrayList<>();
         Set<Integer> copied = new HashSet<>();
         Integer lastPaste = null;
         for (InputEvent event : ordered) {
@@ -115,11 +116,11 @@ final class IndicatorCalculator {
             } else if (event.isPaste()) {
                 lastPaste = null;
                 if (event.isExternalPaste() && !copied.contains(event.textLength())) {
-                    pastes.add(event.textLength());
+                    pastes.add(event);
                     lastPaste = pastes.size() - 1;
                 }
             } else if (event.isEdit()) {
-                if (lastPaste != null && event.undo() && event.rangeLength() == pastes.get(lastPaste)) {
+                if (lastPaste != null && event.undo() && event.rangeLength() == pastes.get(lastPaste).textLength()) {
                     pastes.remove((int) lastPaste);
                 }
                 lastPaste = null;

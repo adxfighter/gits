@@ -9,11 +9,19 @@ import com.fasterxml.jackson.databind.JsonNode;
  * the start of the task.
  */
 record InputEvent(double t, String type, String source, String file, int rangeOffset, int rangeLength,
-                  int textLength, boolean undo, String state, String keyClass, int length, boolean ownCode) {
+                  int textLength, boolean undo, String state, String keyClass, int length, boolean ownCode,
+                  int meaningfulLength) {
 
     InputEvent(double t, String type, String source, String file, int rangeOffset, int rangeLength, int textLength,
                boolean undo, String state, String keyClass, int length) {
-        this(t, type, source, file, rangeOffset, rangeLength, textLength, undo, state, keyClass, length, false);
+        this(t, type, source, file, rangeOffset, rangeLength, textLength, undo, state, keyClass, length, false,
+                textLength);
+    }
+
+    InputEvent(double t, String type, String source, String file, int rangeOffset, int rangeLength, int textLength,
+               boolean undo, String state, String keyClass, int length, boolean ownCode) {
+        this(t, type, source, file, rangeOffset, rangeLength, textLength, undo, state, keyClass, length, ownCode,
+                textLength);
     }
 
     /** Keys that type a character (docs/telemetry.md key classes). */
@@ -25,7 +33,12 @@ record InputEvent(double t, String type, String source, String file, int rangeOf
                 node.path("file").asText(null), node.path("rangeOffset").asInt(), node.path("rangeLength").asInt(),
                 node.path("textLength").asInt(), node.path("isUndo").asBoolean() || node.path("isRedo").asBoolean(),
                 node.path("state").asText(null), node.path("keyClass").asText(null), node.path("length").asInt(),
-                node.path("ownCode").asBoolean(false));
+                node.path("ownCode").asBoolean(false), meaningful(node.path("text").asText("")));
+    }
+
+    /** Non-whitespace characters, as the page counts a paste (own-code.ts). */
+    private static int meaningful(String text) {
+        return (int) text.codePoints().filter(c -> !Character.isWhitespace(c) && !Character.isSpaceChar(c)).count();
     }
 
     /**

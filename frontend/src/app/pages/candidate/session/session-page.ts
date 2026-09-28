@@ -73,6 +73,7 @@ export class SessionPage implements OnInit {
   protected readonly debug = new URLSearchParams(location.search).get('debug') === '1';
   private readonly editor = viewChild(CodeEditor);
   private readonly statementElement = viewChild<ElementRef<HTMLElement>>('statementElement');
+  private readonly resultsElement = viewChild<ElementRef<HTMLElement>>('resultsElement');
   private readonly overlayButton = viewChild<ElementRef<HTMLButtonElement>>('overlayButton');
 
   protected readonly session = signal<SessionView | null>(null);
@@ -153,7 +154,12 @@ export class SessionPage implements OnInit {
       if (!task || !editor) {
         return [];
       }
-      return [...editor.texts(task, exclude), this.statementElement()?.nativeElement.textContent ?? ''];
+      // the statement and the run results (expected values, compiler messages) are the task's text too
+      return [
+        ...editor.texts(task, exclude),
+        this.statementElement()?.nativeElement.textContent ?? '',
+        this.resultsElement()?.nativeElement.textContent ?? '',
+      ];
     });
     effect(() => {
       const suspicion = this.telemetry.copySuspicion();

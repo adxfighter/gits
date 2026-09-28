@@ -16,6 +16,8 @@ const FLUSH_INTERVAL_MS = 2000;
 const CURSOR_INTERVAL_MS = 100;
 /** Texts copied or cut in the editor that a later paste may bring back (the candidate's own). */
 const COPIED_KEPT = 20;
+/** The warm-up's retyping file (part 1), checked by the platform against the sample. */
+const RETYPING_FILE = 'Typing.txt';
 
 /** The texts a paste may legitimately come from; {@code exclude} is the part just inserted into a file. */
 export type SourceLookup = (exclude?: { file: string; offset: number; length: number }) => string[];
@@ -210,19 +212,28 @@ export class TelemetryCollector {
           if (!this.domPaste) {
             // pasted from the context menu: no DOM event came first, so the edits were taken for typing
             this.pendingInsert = null;
-            const edits = this.lastEdits.filter((event) => event.type === 'edit');
-            const text = edits.map((event) => ('text' in event ? event.text : '')).join('');
-            const first = edits[0];
-            const verdict = this.judge(text, first && 'rangeOffset' in first
-              ? { file: fileOf(model), offset: first.rangeOffset, length: text.length } : undefined);
-            for (const event of edits) {
-              if (event.type === 'edit') {
-                event.source = 'paste';
-                event.ownCode = verdict.own;
+            const file = fileOf(model);
+            let length = 0;
+            let own = true;
+            let worst: PasteVerdict | null = null;
+            // with several cursors every piece went to its own place: each is judged without itself
+            for (const event of this.lastEdits) {
+              if (event.type !== 'edit') {
+                continue;
+              }
+              const verdict = this.judge(event.text, { file, offset: event.rangeOffset, length: event.text.length }, file);
+              event.source = 'paste';
+              event.ownCode = verdict.own;
+              length += event.text.length;
+              own &&= verdict.own;
+              if (verdict.suspicious && (!worst || verdict.meaningful > worst.meaningful)) {
+                worst = verdict;
               }
             }
-            this.record({ type: 'paste', file: fileOf(model), length: text.length, ownCode: verdict.own });
-            this.warn(verdict);
+            this.record({ type: 'paste', file, length, ownCode: own });
+            if (worst) {
+              this.warn(worst);
+            }
           }
           this.domPaste = false;
         }),
@@ -237,14 +248,15 @@ export class TelemetryCollector {
       this.measure(() => {
         const text = e.clipboardData?.getData('text/plain') ?? '';
         const model = editor.getModel();
-        if (text.length === 0 || !model) {
+        if (text.length === 0 || !model || editor.getRawOptions().readOnly) {
+          // nothing textual is pasted (e.g. an image), or the file is read-only: no change follows
           // nothing textual is pasted (e.g. an image): no change follows
           return;
         }
         this.sources.paste(performance.now());
         this.domPaste = true;
         // checked before Monaco inserts it: the files are still as they were
-        const verdict = this.judge(text);
+        const verdict = this.judge(text, undefined, fileOf(model));
         this.pasteOwn = verdict.own;
         this.record({ type: 'paste', file: fileOf(model), length: text.length, ownCode: verdict.own });
         this.warn(verdict);
@@ -255,10 +267,17 @@ export class TelemetryCollector {
           this.sources.cut(performance.now());
         }
         const model = editor.getModel();
-        const selection = editor.getSelection();
-        if (model && selection) {
-          const text = model.getValueInRange(selection);
+        const selections = editor.getSelections() ?? [];
+        if (model && selections.length > 0) {
+          // what Monaco puts on the clipboard: every selection, or the whole line when nothing is selected
+          const pieces = selections.map((selection) =>
+            selection.isEmpty() ? model.getLineContent(selection.startLineNumber) + model.getEOL()
+              : model.getValueInRange(selection));
+          const text = pieces.join(model.getEOL());
           this.remember(text);
+          if (pieces.length > 1) {
+            pieces.forEach((piece) => this.remember(piece));
+          }
           this.record({ type: 'copy', file: fileOf(model), length: text.length });
         }
       });
@@ -314,7 +333,8 @@ export class TelemetryCollector {
     if (!insert) {
       return;
     }
-    const verdict = this.judge(insert.text, { file: insert.file, offset: insert.offset, length: insert.text.length });
+    const verdict = this.judge(insert.text, { file: insert.file, offset: insert.offset, length: insert.text.length },
+      insert.file);
     for (const event of insert.events) {
       if (event.type === 'edit') {
         event.source = 'paste';
@@ -327,10 +347,12 @@ export class TelemetryCollector {
 
   /**
    * Whether a pasted text is the candidate's own: in the task's files or statement, or copied in the editor
-   * before. In the warm-up nothing is own: retyping means typing (its check is on the server).
+   * before. In the warm-up's retyping file nothing is own: retyping means typing (its check is on the server);
+   * part 2 of the warm-up is judged like any task.
    */
-  private judge(text: string, exclude?: { file: string; offset: number; length: number }): PasteVerdict {
-    if (this.calibration) {
+  private judge(text: string, exclude: { file: string; offset: number; length: number } | undefined,
+                file: string): PasteVerdict {
+    if (this.calibration && file.endsWith('/' + RETYPING_FILE)) {
       const meaningful = withoutSpace(text).length;
       return { meaningful, own: false, suspicious: false };
     }

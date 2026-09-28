@@ -50,7 +50,9 @@ import { RetypingResult, RunView } from '../../../core/candidate/candidate.model
               }
             } @else {
               <p class="state" [class.state--ok]="allPassed()" [class.state--bad]="!allPassed()" data-testid="results-state">
-                @if (current.mode === 'SUBMIT') {
+                @if (current.mode === 'SUBMIT' && calibration()) {
+                  Разминка отправлена. Она не влияет на оценку.
+                } @else if (current.mode === 'SUBMIT') {
                   Решение отправлено. Скрытые тесты: пройдено {{ current.testsPassed }} из {{ current.testsTotal }}
                 } @else {
                   Пройдено {{ current.testsPassed }} из {{ current.testsTotal }}
@@ -90,9 +92,14 @@ export class ResultsPanel {
   /** Warm-up part 1: the panel shows the retyping check instead of test runs. */
   readonly retypingMode = input(false);
   readonly retyping = input<RetypingResult | null>(null);
+  /** The warm-up: its submit has no hidden tests, so no counts are shown for it. */
+  readonly calibration = input(false);
 
   protected readonly allPassed = computed(() => {
     const current = this.run();
+    if (current?.mode === 'SUBMIT' && this.calibration()) {
+      return true;
+    }
     return !!current && current.testsTotal !== null && current.testsPassed === current.testsTotal;
   });
 

@@ -99,6 +99,17 @@ describe('ResultsPanel', () => {
     expect(root.querySelector('.state--ok')).not.toBeNull();
   });
 
+  it('does not show hidden test counts for the warm-up, which has none', () => {
+    const fixture = TestBed.createComponent(ResultsPanel);
+    fixture.componentRef.setInput('calibration', true);
+    fixture.componentRef.setInput('run', runView({ mode: 'SUBMIT', tests: [], testsTotal: 0, testsPassed: 0 }));
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(state(root)).toContain('Разминка отправлена');
+    expect(state(root)).not.toContain('0 из 0');
+    expect(root.querySelector('.state--ok')).not.toBeNull();
+  });
+
   it('explains a timeout and a runner error', () => {
     expect(state(render(runView({ status: 'TIMEOUT' })).root)).toContain('Превышено время выполнения');
     expect(state(render(runView({ status: 'ERROR' })).root)).toContain('Не удалось выполнить запуск');

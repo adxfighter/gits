@@ -150,8 +150,8 @@
       (runRequested)="runTests()"
       (ready)="telemetry.attachEditor($event.editor)"
     />
-    <section class="ws__results" aria-label="Результаты">
-      <app-results-panel [run]="run()" [retypingMode]="split()" [retyping]="retyping()" />
+    <section #resultsElement class="ws__results" aria-label="Результаты">
+      <app-results-panel [run]="run()" [retypingMode]="split()" [retyping]="retyping()" [calibration]="!!calibration()" />
     </section>
   </main>
 </div>

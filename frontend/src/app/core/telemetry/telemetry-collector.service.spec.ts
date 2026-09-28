@@ -24,6 +24,9 @@ function emitter<T>() {
 
 /** What the fake editor has selected when a copy or cut happens. */
 const selectionText = { value: 'copied' };
+/** The line under the cursor: what Monaco copies when nothing is selected. */
+const lineContent = { value: '' };
+const readOnly = { value: false };
 
 function fakeEditor(taskId: string) {
   const keyDown = emitter<unknown>();
@@ -41,6 +44,8 @@ function fakeEditor(taskId: string) {
     },
     getOffsetAt: (position: { lineNumber: number; column: number }) => position.column - 1,
     getValueInRange: () => selectionText.value,
+    getLineContent: () => lineContent.value,
+    getEOL: () => '\n',
   };
   const editor = {
     onKeyDown: keyDown.event,
@@ -55,11 +60,14 @@ function fakeEditor(taskId: string) {
     getDomNode: () => null,
     getContainerDomNode: () => node,
     getSelection: () => ({}),
+    getSelections: () => [{ isEmpty: () => selectionText.value === '', startLineNumber: 1 }],
+    getRawOptions: () => ({ readOnly: readOnly.value }),
   } as unknown as Monaco.editor.IStandaloneCodeEditor;
   return {
     editor,
     node,
     switchTo: (id: string) => (path = `/${id}/src/Main.java`),
+    openFile: (file: string) => (path = `/${taskId}/${file}`),
     key: (code: string, key: string, repeat = false) => {
       const browserEvent = { code, key, repeat };
       keyDown.fire({ browserEvent });
@@ -317,6 +325,27 @@ describe('TelemetryCollector', () => {
       expect(collector.copySuspicion()).toBeNull();
     });
 
+    it('remembers the whole line copied or cut without a selection', async () => {
+      const fake = start();
+      lineContent.value = '    int lateVisits = countLate(visits);';
+      fake.copy('', true);
+      fake.domPaste('int lateVisits = countLate(visits);\n');
+      fake.type('int lateVisits = countLate(visits);\n');
+
+      expect(pastes(await events())[0].ownCode).toBe(true);
+      expect(collector.copySuspicion()).toBeNull();
+    });
+
+    it('does not judge a paste into a read-only file, which the editor rejects', async () => {
+      const fake = start();
+      readOnly.value = true;
+      fake.domPaste('Collectors.groupingBy(Visit::doctor)');
+      readOnly.value = false;
+
+      expect(pastes(await events())).toHaveLength(0);
+      expect(collector.copySuspicion()).toBeNull();
+    });
+
     it('checks text that arrived without a paste event, but not an accepted completion', async () => {
       const fake = start();
       // dragged in from outside
@@ -334,13 +363,19 @@ describe('TelemetryCollector', () => {
       expect(list.map((e) => e.source)).toEqual(['paste', 'completion']);
     });
 
-    it('leaves the warm-up to its retyping check', async () => {
+    it('leaves the warm-up retyping to its own check, but judges part 2 like a task', async () => {
       const fake = start('CALIBRATION');
+      fake.openFile('src/main/java/cal/Typing.txt');
       fake.domPaste('Collectors.groupingBy(Visit::doctor)');
       fake.type('Collectors.groupingBy(Visit::doctor)');
-
-      expect(pastes(await events())[0].ownCode).toBe(false);
       expect(collector.copySuspicion()).toBeNull();
+
+      fake.openFile('src/main/java/cal/PhoneNumbers.java');
+      fake.domPaste('return raw.replaceAll("[^0-9]", "");');
+      fake.type('return raw.replaceAll("[^0-9]", "");');
+      expect(collector.copySuspicion()).not.toBeNull();
+
+      expect(pastes(await events()).map((e) => e.ownCode)).toEqual([false, false]);
     });
   });
 

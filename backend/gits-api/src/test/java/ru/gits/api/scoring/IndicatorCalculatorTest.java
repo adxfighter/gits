@@ -245,6 +245,16 @@ class IndicatorCalculatorTest {
     }
 
     @Test
+    void externalPastesCountNonWhitespaceCharactersLikeThePage() {
+        // "\n        i++;" from outside: 13 characters, but 4 without whitespace — below the threshold
+        List<InputEvent> events = List.of(
+                new InputEvent(1000, "edit", "paste", FILE, 0, 0, 13, false, null, null, 0, false, 4),
+                new InputEvent(2000, "edit", "paste", FILE, 13, 0, 30, false, null, null, 0, false, 24));
+
+        assertThat(calculator.compute(events, 43, null, null, 0).externalPastes()).isEqualTo(1);
+    }
+
+    @Test
     void activityAfterAReloadEndsTheAwayEpisode() {
         // the old page reported "hidden" when it was reloaded; the new one only moves the cursor
         Stream s = new Stream().type(chars(10), 5).event("visibility", "hidden").pause(2)

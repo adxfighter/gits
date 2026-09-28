@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import ru.gits.api.security.CurrentUser;
+import ru.gits.taskbank.demo.DemoSession;
 
 /** The administrator's section (role ADMIN, see SecurityConfig): task bank, all sessions, research export. */
 @RestController
@@ -25,10 +26,12 @@ class AdminController {
 
     private final AdminService admin;
     private final ExportService export;
+    private final DemoExportService demoExport;
 
-    AdminController(AdminService admin, ExportService export) {
+    AdminController(AdminService admin, ExportService export, DemoExportService demoExport) {
         this.admin = admin;
         this.export = export;
+        this.demoExport = demoExport;
     }
 
     @GetMapping("/tasks")
@@ -45,6 +48,16 @@ class AdminController {
     @GetMapping("/sessions")
     List<AdminService.SessionRow> sessions() {
         return admin.sessions();
+    }
+
+    /** A finished session as a demo file for {@code gits-taskbank demo-seed}, under the given label (P16). */
+    @GetMapping("/sessions/{sessionId}/demo-export")
+    ResponseEntity<DemoSession> demoExport(@PathVariable UUID sessionId, @RequestParam String label) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("demo-session-" + sessionId + ".json").build().toString())
+                .body(demoExport.export(sessionId, label));
     }
 
     /**

@@ -71,6 +71,28 @@ services:
       api:
         condition: service_healthy
 
+  # Task bank CLI for scripts (scripts/demo-reset): not started by up, only by run
+  taskbank:
+    profiles: [tools]
+    build:
+      context: ./backend
+      target: taskbank
+      args:
+        MODULE: taskbank
+        JAR_SUFFIX: -exec
+    image: gits-taskbank:local
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      DEMO_EMPLOYER_EMAIL: ${DEMO_EMPLOYER_EMAIL}
+    volumes:
+      - ./tasks:/tasks:ro
+      - ./seed:/seed:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   web:
     build:
       context: ./frontend

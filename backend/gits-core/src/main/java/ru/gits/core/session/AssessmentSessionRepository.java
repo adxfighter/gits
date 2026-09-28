@@ -26,6 +26,13 @@ public interface AssessmentSessionRepository extends JpaRepository<AssessmentSes
 
     List<AssessmentSession> findByInviteIdIn(Collection<UUID> inviteIds);
 
+    /** Every session, newest first (the admin's list). */
+    List<AssessmentSession> findAllByOrderByStartedAtDesc();
+
+    /** Sessions started in {@code [from, to)} (the research export). */
+    List<AssessmentSession> findByStartedAtGreaterThanEqualAndStartedAtLessThanOrderByStartedAt(Instant from,
+                                                                                            Instant to);
+
     /**
      * Finished sessions without a score whose submits are all checked (or taken as lost: waiting since before
      * {@code stuckBefore}), oldest first.

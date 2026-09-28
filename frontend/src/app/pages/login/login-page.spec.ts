@@ -80,11 +80,26 @@ describe('LoginPage', () => {
     expect(root.querySelector('[data-testid="login-error"]')?.textContent).toContain('Введите email и пароль');
   });
 
-  it('returns only to employer pages of the app itself', () => {
-    expect(safeReturnUrl('/employer/sessions/1')).toBe('/employer/sessions/1');
-    expect(safeReturnUrl('https://evil.example/employer')).toBe('/employer');
-    expect(safeReturnUrl('//evil.example')).toBe('/employer');
-    expect(safeReturnUrl('/c/session')).toBe('/employer');
-    expect(safeReturnUrl(undefined)).toBe('/employer');
+  it('returns only to pages of the own section of the user, in the app itself', () => {
+    expect(safeReturnUrl('/employer/sessions/1', 'EMPLOYER')).toBe('/employer/sessions/1');
+    expect(safeReturnUrl('https://evil.example/employer', 'EMPLOYER')).toBe('/employer');
+    expect(safeReturnUrl('//evil.example', 'EMPLOYER')).toBe('/employer');
+    expect(safeReturnUrl('/employerx.evil', 'EMPLOYER')).toBe('/employer');
+    expect(safeReturnUrl('/c/session', 'EMPLOYER')).toBe('/employer');
+    expect(safeReturnUrl(undefined, 'EMPLOYER')).toBe('/employer');
+    expect(safeReturnUrl('/admin/sessions', 'EMPLOYER')).toBe('/employer');
+    expect(safeReturnUrl('/admin/sessions', 'ADMIN')).toBe('/admin/sessions');
+    expect(safeReturnUrl('/employer', 'ADMIN')).toBe('/admin/tasks');
+  });
+
+  it('takes an administrator to the task bank', async () => {
+    const { fixture, root } = render();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    fill(root, 'admin@demo.local', 'secret');
+    answerLogin((request) =>
+      request.flush({ userId: 'u', email: 'admin@demo.local', role: 'ADMIN', companyId: null, companyName: null }),
+    );
+    await fixture.whenStable();
+    expect(navigate).toHaveBeenCalledWith('/admin/tasks');
   });
 });

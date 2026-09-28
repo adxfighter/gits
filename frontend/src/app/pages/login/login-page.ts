@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
 
-import { AuthService } from '../../core/auth/auth.service';
+import { AuthService, UserRole } from '../../core/auth/auth.service';
+import { HOME_OF } from '../../core/auth/employer.guard';
 import { messageOf, statusOf } from '../../core/http/http-errors';
 
 /** Sign-in of an employer: email and password (docs/api.md, POST /auth/login). */
@@ -10,7 +11,8 @@ import { messageOf, statusOf } from '../../core/http/http-errors';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="card login">
-      <h1>Вход для работодателя</h1>
+      <h1>Вход</h1>
+      <p class="muted">Для работодателей и администратора платформы.</p>
       @if (notice(); as text) {
         <p class="login__notice" data-testid="login-notice">{{ text }}</p>
       }
@@ -60,7 +62,7 @@ import { messageOf, statusOf } from '../../core/http/http-errors';
 export class LoginPage {
   /** Where to go after signing in (query parameter set by the guard). */
   readonly returnUrl = input<string>();
-  /** Why the visitor is here: `role` (not an employer), `expired` (the session ended) or `offline`. */
+  /** Why the visitor is here: `expired` (the session ended) or `offline`. */
   readonly reason = input<string>();
 
   private readonly auth = inject(AuthService);
@@ -73,8 +75,6 @@ export class LoginPage {
 
   protected readonly notice = computed(() => {
     switch (this.reason()) {
-      case 'role':
-        return 'Кабинет работодателя открывается только под учётной записью работодателя.';
       case 'expired':
         return 'Сессия закончилась. Войдите снова.';
       case 'offline':
@@ -100,13 +100,7 @@ export class LoginPage {
     this.auth.login(email, this.password()).subscribe({
       next: (user) => {
         this.busy.set(false);
-        if (user.role !== 'EMPLOYER') {
-          // no dashboard for this account, and no header with «Выйти» here: do not leave the session behind
-          this.auth.logout().subscribe({ error: () => undefined });
-          this.error.set('Кабинет работодателя открывается только под учётной записью работодателя.');
-          return;
-        }
-        void this.router.navigateByUrl(safeReturnUrl(this.returnUrl()));
+        void this.router.navigateByUrl(safeReturnUrl(this.returnUrl(), user.role));
       },
       error: (error: unknown) => {
         this.busy.set(false);
@@ -120,7 +114,12 @@ export class LoginPage {
   }
 }
 
-/** Only a path of the app itself: an address from the query string must not lead to another site. */
-export function safeReturnUrl(url: string | undefined): string {
-  return url && url.startsWith('/employer') ? url : '/employer';
+/**
+ * Only a page of the user's own section: an address from the query string must not lead to another site, nor to the
+ * section of the other role.
+ */
+export function safeReturnUrl(url: string | undefined, role: UserRole): string {
+  const home = HOME_OF[role];
+  const section = role === 'ADMIN' ? '/admin' : '/employer';
+  return url && (url === section || url.startsWith(section + '/') || url.startsWith(section + '?')) ? url : home;
 }

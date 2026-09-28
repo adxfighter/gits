@@ -7,7 +7,8 @@ import { AuthService } from './core/auth/auth.service';
 
 interface PageState {
   fullscreen: boolean;
-  employer: boolean;
+  /** The section of the signed-in user the page belongs to, with its header. */
+  section: 'employer' | 'admin' | null;
 }
 
 @Component({
@@ -19,10 +20,15 @@ interface PageState {
       <header class="app-header">
         <span class="app-header__logo">GITS</span>
         <span class="app-header__subtitle">Оценка практических навыков разработчиков</span>
-        @if (page().employer && auth.user(); as user) {
-          <nav class="app-header__user" aria-label="Кабинет работодателя">
-            <a routerLink="/employer" class="app-header__link">Приглашения</a>
-            <span class="app-header__who" data-testid="header-user">{{ user.companyName }} · {{ user.email }}</span>
+        @if (page().section && auth.user(); as user) {
+          <nav class="app-header__user" [attr.aria-label]="page().section === 'admin' ? 'Раздел администратора' : 'Кабинет работодателя'">
+            @if (page().section === 'admin') {
+              <a routerLink="/admin/tasks" class="app-header__link">Банк задач</a>
+              <a routerLink="/admin/sessions" class="app-header__link">Сессии</a>
+            } @else {
+              <a routerLink="/employer" class="app-header__link">Приглашения</a>
+            }
+            <span class="app-header__who" data-testid="header-user">{{ user.companyName ? user.companyName + ' · ' : 'Администратор · ' }}{{ user.email }}</span>
             <button class="btn btn--ghost" type="button" (click)="logout()" data-testid="logout">Выйти</button>
             @if (logoutError()) {
               <span class="error" role="alert" data-testid="logout-error">Не удалось выйти: нет связи с сервером.</span>
@@ -68,11 +74,15 @@ export class App {
       map(
         (event): PageState => ({
           fullscreen: App.deepest(this.router.routerState.snapshot.root).data['fullscreen'] === true,
-          employer: event.urlAfterRedirects.startsWith('/employer'),
+          section: event.urlAfterRedirects.startsWith('/employer')
+            ? 'employer'
+            : event.urlAfterRedirects.startsWith('/admin')
+              ? 'admin'
+              : null,
         }),
       ),
     ),
-    { initialValue: { fullscreen: false, employer: false } },
+    { initialValue: { fullscreen: false, section: null } },
   );
 
   protected logout(): void {

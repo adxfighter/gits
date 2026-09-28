@@ -1,5 +1,6 @@
 package ru.gits.core.session;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,4 +31,17 @@ public interface SessionTaskRepository extends JpaRepository<SessionTask, UUID> 
 
     /** A task of a session of the employer's own company. */
     Optional<SessionTask> findByIdAndSessionInviteCompanyId(UUID id, UUID companyId);
+
+    /** Tasks of several sessions (the research export). */
+    List<SessionTask> findBySessionIdInOrderBySessionIdAscOrderNoAsc(Collection<UUID> sessionIds);
+
+    /** How many times each variant was given to candidates (the admin's task bank). */
+    @Query("SELECT t.variant.id AS variantId, COUNT(t) AS issued FROM SessionTask t GROUP BY t.variant.id")
+    List<VariantIssues> countIssuedByVariant();
+
+    interface VariantIssues {
+        UUID getVariantId();
+
+        long getIssued();
+    }
 }

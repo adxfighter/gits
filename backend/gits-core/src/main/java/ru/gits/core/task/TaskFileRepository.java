@@ -9,4 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface TaskFileRepository extends JpaRepository<TaskFile, UUID> {
 
     List<TaskFile> findByVariantIdAndKindIn(UUID variantId, Collection<FileKind> kinds);
+
+    /** Every file of a variant, the solution and the hidden tests included: for the administrator only. */
+    List<TaskFile> findByVariantId(UUID variantId);
 }

@@ -2,20 +2,29 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { catchError, map, of } from 'rxjs';
 
-import { AuthService } from './auth.service';
+import { AuthService, UserRole } from './auth.service';
+
+/** Home page of each role: where a signed-in user goes by default. */
+export const HOME_OF: Record<UserRole, string> = { EMPLOYER: '/employer', ADMIN: '/admin/tasks' };
 
 /**
- * Employer pages need a signed-in employer. Without a session the visitor goes to /login and comes back after it;
- * an administrator, who has no employer dashboard, sees a note on the login page.
+ * Pages of one role. Without a session the visitor goes to /login and comes back after it; a user of the other role
+ * goes to their own section.
  */
-export const employerGuard: CanActivateFn = (_route, state) => {
-  const router = inject(Router);
-  const toLogin = (reason?: string) =>
-    router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url, reason } });
-  return inject(AuthService)
-    .me()
-    .pipe(
-      map((user) => (user === null ? toLogin() : user.role === 'EMPLOYER' ? true : toLogin('role'))),
-      catchError(() => of(toLogin('offline'))),
-    );
-};
+function roleGuard(role: UserRole): CanActivateFn {
+  return (_route, state) => {
+    const router = inject(Router);
+    const toLogin = (reason?: string) =>
+      router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url, reason } });
+    return inject(AuthService)
+      .me()
+      .pipe(
+        map((user) => (user === null ? toLogin() : user.role === role ? true : router.parseUrl(HOME_OF[user.role]))),
+        catchError(() => of(toLogin('offline'))),
+      );
+  };
+}
+
+export const employerGuard: CanActivateFn = roleGuard('EMPLOYER');
+
+export const adminGuard: CanActivateFn = roleGuard('ADMIN');

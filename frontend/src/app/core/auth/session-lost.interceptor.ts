@@ -6,8 +6,8 @@ import { catchError, throwError } from 'rxjs';
 import { statusOf } from '../http/http-errors';
 import { AuthService } from './auth.service';
 
-/** Employer API paths: a 401 there means the employer's session is gone. */
-const EMPLOYER_API = ['/api/employer/', '/api/invites'];
+/** Employer and admin API paths: a 401 there means the session of the signed-in user is gone. */
+const EMPLOYER_API = ['/api/employer/', '/api/invites', '/api/admin/'];
 
 /**
  * The employer's session may end while a page is open (it expired, the api restarted): the next request of the

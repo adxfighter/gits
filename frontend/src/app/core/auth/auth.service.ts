@@ -12,8 +12,9 @@ export interface CurrentUser {
   userId: string;
   email: string;
   role: UserRole;
-  companyId: string;
-  companyName: string;
+  /** null for the administrator, who belongs to no company. */
+  companyId: string | null;
+  companyName: string | null;
 }
 
 /** Employer and admin sign-in (docs/api.md, «Работодатель»): the HTTP session cookie, CSRF on every change. */

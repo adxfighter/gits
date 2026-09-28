@@ -30,7 +30,9 @@ public record TelemetryEvent(
         String state,
         Integer offset,
         Integer width,
-        Integer height) {
+        Integer height,
+        /** paste and edit (source paste): the pasted text was in the task's code or statement (docs/telemetry.md). */
+        Boolean ownCode) {
 
     public static final Set<String> TYPES = Set.of("kd", "ku", "edit", "cursor", "select", "paste", "copy", "focus",
             "blur", "visibility", "completion", "run", "submit", "resize");
@@ -94,24 +96,26 @@ public record TelemetryEvent(
     public TelemetryEvent normalized() {
         return switch (type) {
             case "kd", "ku" -> new TelemetryEvent(t, type, keyClass, Boolean.TRUE.equals(repeat), null, null, null,
-                    null, null, null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null, null, null);
             case "edit" -> new TelemetryEvent(t, type, null, null, file, rangeOffset, rangeLength, textLength, text,
                     Boolean.TRUE.equals(isUndo), Boolean.TRUE.equals(isRedo), source, null, null, null, null, null,
-                    null, null);
+                    null, null, "paste".equals(source) ? Boolean.TRUE.equals(ownCode) : null);
             case "cursor" -> new TelemetryEvent(t, type, null, null, file, null, null, null, null, null, null, null,
-                    null, null, null, null, offset, null, null);
+                    null, null, null, null, offset, null, null, null);
             case "select" -> new TelemetryEvent(t, type, null, null, file, null, null, null, null, null, null, null,
-                    length, null, null, null, offset, null, null);
-            case "paste", "copy" -> new TelemetryEvent(t, type, null, null, file, null, null, null, null, null, null,
-                    null, length, null, null, null, null, null, null);
+                    length, null, null, null, offset, null, null, null);
+            case "paste" -> new TelemetryEvent(t, type, null, null, file, null, null, null, null, null, null,
+                    null, length, null, null, null, null, null, null, Boolean.TRUE.equals(ownCode));
+            case "copy" -> new TelemetryEvent(t, type, null, null, file, null, null, null, null, null, null,
+                    null, length, null, null, null, null, null, null, null);
             case "completion" -> new TelemetryEvent(t, type, null, null, null, null, null, null, null, null, null,
-                    null, null, accepted, insertedLength, null, null, null, null);
+                    null, null, accepted, insertedLength, null, null, null, null, null);
             case "visibility" -> new TelemetryEvent(t, type, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, state, null, null, null);
+                    null, null, null, null, state, null, null, null, null);
             case "resize" -> new TelemetryEvent(t, type, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, null, width, height);
+                    null, null, null, null, null, width, height, null);
             default -> new TelemetryEvent(t, type, null, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null, null, null, null);
+                    null, null, null, null, null, null, null);
         };
     }
 }

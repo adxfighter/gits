@@ -73,7 +73,7 @@
           </button>
         </div>
       }
-      <section class="ws__statement prose" [innerHTML]="statement() | markdown"></section>
+      <section #statementElement class="ws__statement prose" [innerHTML]="statement() | markdown"></section>
       <section class="ws__files">
         <h3>Файлы</h3>
         <ul>

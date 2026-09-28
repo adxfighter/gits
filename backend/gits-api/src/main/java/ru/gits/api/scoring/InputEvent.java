@@ -9,7 +9,12 @@ import com.fasterxml.jackson.databind.JsonNode;
  * the start of the task.
  */
 record InputEvent(double t, String type, String source, String file, int rangeOffset, int rangeLength,
-                  int textLength, boolean undo, String state, String keyClass, int length) {
+                  int textLength, boolean undo, String state, String keyClass, int length, boolean ownCode) {
+
+    InputEvent(double t, String type, String source, String file, int rangeOffset, int rangeLength, int textLength,
+               boolean undo, String state, String keyClass, int length) {
+        this(t, type, source, file, rangeOffset, rangeLength, textLength, undo, state, keyClass, length, false);
+    }
 
     /** Keys that type a character (docs/telemetry.md key classes). */
     private static final Set<String> CHARACTER_KEYS = Set.of("letter", "digit", "space", "punct", "bracket", "enter",
@@ -19,7 +24,8 @@ record InputEvent(double t, String type, String source, String file, int rangeOf
         return new InputEvent(node.path("t").asDouble(), node.path("type").asText(), node.path("source").asText(null),
                 node.path("file").asText(null), node.path("rangeOffset").asInt(), node.path("rangeLength").asInt(),
                 node.path("textLength").asInt(), node.path("isUndo").asBoolean() || node.path("isRedo").asBoolean(),
-                node.path("state").asText(null), node.path("keyClass").asText(null), node.path("length").asInt());
+                node.path("state").asText(null), node.path("keyClass").asText(null), node.path("length").asInt(),
+                node.path("ownCode").asBoolean(false));
     }
 
     /**
@@ -49,5 +55,10 @@ record InputEvent(double t, String type, String source, String file, int rangeOf
 
     boolean isPaste() {
         return isEdit() && "paste".equals(source);
+    }
+
+    /** A paste of text found neither in the task's code nor in its statement at the moment of the paste. */
+    boolean isExternalPaste() {
+        return isPaste() && !ownCode;
     }
 }

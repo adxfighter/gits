@@ -52,6 +52,8 @@ class TelemetryApiTest extends CandidateSessionTest {
         assertThat(events.get(1).get("source").asText()).isEqualTo("typing");
         assertThat(events.get(1).get("isUndo").asBoolean()).isFalse();
         assertThat(events.get(2).size()).isEqualTo(2);
+        // a typed edit carries no ownCode; it belongs to pastes only
+        assertThat(events.get(1).has("ownCode")).isFalse();
         assertThat(json.readTree(stored.get(0).getFlags()).isEmpty()).isTrue();
     }
 
@@ -93,6 +95,24 @@ class TelemetryApiTest extends CandidateSessionTest {
         List<TelemetryBatch> stored = batches.findBySessionTaskIdOrderBySeq(task.id());
         assertThat(stored).extracting(TelemetryBatch::getSeq).containsExactly(0, 1);
         assertThat(stored.get(1).getEvents()).contains("focus");
+    }
+
+    @Test
+    void theOwnCodeFlagOfPastesIsKept() throws Exception {
+        OpenTask task = openTask();
+        send(task, batch(0, 0, 10, List.of(
+                Map.of("t", 1, "type", "paste", "file", "src/main/java/Solution.java", "length", 12, "ownCode", true),
+                Map.of("t", 2, "type", "edit", "file", "src/main/java/Solution.java", "rangeOffset", 0,
+                        "rangeLength", 0, "textLength", 12, "text", "int x = 100;", "source", "paste",
+                        "ownCode", true),
+                Map.of("t", 3, "type", "paste", "file", "src/main/java/Solution.java", "length", 12))))
+                .andExpect(status().isOk());
+
+        JsonNode events = json.readTree(batches.findBySessionTaskIdOrderBySeq(task.id()).get(0).getEvents());
+        assertThat(events.get(0).get("ownCode").asBoolean()).isTrue();
+        assertThat(events.get(1).get("ownCode").asBoolean()).isTrue();
+        // not stated means from elsewhere
+        assertThat(events.get(2).get("ownCode").asBoolean()).isFalse();
     }
 
     @Test

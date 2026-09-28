@@ -30,10 +30,13 @@ export type TelemetryEventBody =
       isUndo: boolean;
       isRedo: boolean;
       source: EditSource;
+      /** For source "paste": the text was in the task's code, its statement or copied in the editor. */
+      ownCode?: boolean;
     }
   | { type: 'cursor'; file: string; offset: number }
   | { type: 'select'; file: string; offset: number; length: number }
-  | { type: 'paste' | 'copy'; file: string; length: number }
+  | { type: 'paste'; file: string; length: number; ownCode: boolean }
+  | { type: 'copy'; file: string; length: number }
   | { type: 'completion'; accepted: boolean; insertedLength: number }
   | { type: 'visibility'; state: 'visible' | 'hidden' }
   | { type: 'focus' | 'blur' | 'run' | 'submit' }

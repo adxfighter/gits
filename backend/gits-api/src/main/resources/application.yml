@@ -70,3 +70,46 @@ gits:
   telemetry:
     max-events: 2000
     max-batch-bytes: 262144
+  # Experimental rules v1.0 (docs/indicators.md); the R&D version replaces them with machine-learning models
+  indicators:
+    burst-window: 5s
+    idle-pause: 30s
+    idle-burst-chars: 150
+    idle-burst-window: 20s
+    # an insertion this close to the typing frontier still counts as "top to bottom"
+    linear-tolerance: 2
+    rules:
+      - level: RED
+        when: ["pasteRatio > 0.5"]
+        explanation: Больше половины итогового кода добавлено вставкой.
+      - level: RED
+        when: ["idleThenBurst >= 2", "focusLossSeconds > 60"]
+        explanation: Несколько раз после долгой паузы код появлялся быстрым всплеском, а вкладка при этом надолго покидалась.
+      - level: YELLOW
+        when: ["pasteRatio > 0.25"]
+        explanation: Заметная доля итогового кода добавлена вставкой.
+      - level: YELLOW
+        when: ["largestPaste > 300"]
+        explanation: Была крупная вставка кода (больше 300 символов).
+      - level: YELLOW
+        when: ["idleThenBurst >= 1"]
+        explanation: После долгой паузы код появился быстрым всплеском без вставки.
+      - level: YELLOW
+        when: ["focusLossSeconds > 120"]
+        explanation: Вкладка с задачей надолго покидалась (больше 2 минут в сумме).
+      - level: YELLOW
+        when: ["burstRelative > 2.5"]
+        explanation: Пиковая скорость набора намного выше обычной скорости кандидата, измеренной на разминке.
+      - level: YELLOW
+        when: ["linearity > 0.9", "typedChars > 300"]
+        explanation: Код набран почти строго сверху вниз, без возвратов и правок — похоже на перепечатку готового решения.
+      - level: YELLOW
+        when: ["telemetryEvents == 0"]
+        explanation: По задаче нет данных телеметрии — оценить достоверность нельзя.
+  scoring:
+    weights:
+      JUNIOR: 1.0
+      MIDDLE: 1.5
+      SENIOR: 2.0
+    # finished sessions whose submits are all checked get their indicators and score
+    check-interval: 15s

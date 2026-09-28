@@ -6,18 +6,33 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import ru.gits.api.scoring.ScoringService;
+
 /**
- * Starts the calculation of indicators and the preliminary score after the session is committed. The calculation
- * itself arrives with P12; until then the trigger only records that the session is ready for it.
+ * Scores the session right after it is committed as finished, if its runs are already checked. Usually the automatic
+ * submits are still in the queue then; ScoringScheduler scores the session once they are done.
  */
 @Component
 class SessionScoringTrigger {
 
     private static final Logger LOG = LoggerFactory.getLogger(SessionScoringTrigger.class);
 
+    private final ScoringService scoring;
+
+    SessionScoringTrigger(ScoringService scoring) {
+        this.scoring = scoring;
+    }
+
     @Async
     @TransactionalEventListener
     void onSessionFinished(SessionFinishedEvent event) {
-        LOG.info("Session {} finished: indicators and score will be computed (P12)", event.sessionId());
+        try {
+            var result = scoring.compute(event.sessionId());
+            if (!result.scored()) {
+                LOG.info("Session {} finished: scored once its submits are checked", event.sessionId());
+            }
+        } catch (RuntimeException e) {
+            LOG.error("Session {} could not be scored now; the scheduler retries", event.sessionId(), e);
+        }
     }
 }

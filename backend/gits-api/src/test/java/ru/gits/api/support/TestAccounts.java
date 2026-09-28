@@ -33,6 +33,14 @@ public class TestAccounts {
     }
 
     @Transactional
+    /** A platform administrator (no company). */
+    public Account admin() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        AppUser user = users.save(new AppUser(null, "admin-" + suffix + "@test.local", encoder.encode(PASSWORD),
+                UserRole.ADMIN, Instant.now()));
+        return new Account(user.getId(), null, user.getEmail());
+    }
+
     public Account employer() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         Company company = companies.save(new Company("Компания " + suffix, Instant.now()));

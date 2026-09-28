@@ -55,6 +55,7 @@ public final class TaskBankCli {
                 case "verify-hashes" -> verifyHashes(options, out);
                 case "stats" -> stats(options, out);
                 case "load" -> load(options, out);
+                case "demo-seed" -> demoSeed(options, out);
                 default -> {
                     out.println("Unknown command: " + options.command());
                     printUsage(out);
@@ -220,6 +221,26 @@ public final class TaskBankCli {
         }
     }
 
+    /** EXIT_OK — every file imported or already there, EXIT_FAILED — some skipped, EXIT_ERROR — nothing ran. */
+    private static int demoSeed(Options options, PrintStream out) {
+        String employer = options.employer().orElse(System.getenv("DEMO_EMPLOYER_EMAIL"));
+        if (employer == null || employer.isBlank()) {
+            out.println("Не указан работодатель: --employer или DEMO_EMPLOYER_EMAIL");
+            return EXIT_USAGE;
+        }
+        try {
+            var summary = ru.gits.taskbank.demo.DemoSeedCommand.run(options.root(), employer.strip(), out);
+            if (summary.files() == 0) {
+                out.println("В каталоге " + options.root() + " нет демо-файлов *.json");
+                return EXIT_ERROR;
+            }
+            return summary.rejected() == 0 ? EXIT_OK : EXIT_FAILED;
+        } catch (RuntimeException e) {
+            out.println("Демо-сессии не загружены: " + rootMessage(e));
+            return EXIT_ERROR;
+        }
+    }
+
     private static List<VariantLocation> selected(TaskBankLayout layout, Optional<String> variant) {
         return layout.variants().stream()
                 .filter(v -> variant.isEmpty() || v.code().equals(variant.get())
@@ -238,16 +259,20 @@ public final class TaskBankCli {
         out.println("                         (--check: fail if the catalog is out of date, do not write it)");
         out.println("  gits-taskbank load <tasks/java> [--exclude T00,...]  (database from SPRING_DATASOURCE_*;");
         out.println("                         the format example T00 is excluded by default, --exclude '' loads it)");
+        out.println("  gits-taskbank demo-seed <seed/demo-sessions> [--employer employer@demo.local]");
+        out.println("                         (recorded sessions into the employer's company; default employer —");
+        out.println("                         DEMO_EMPLOYER_EMAIL; sessions already there are skipped)");
         out.println("  gits-taskbank help");
     }
 
     record Options(String command, Path root, Optional<String> variant, Optional<Integer> runs, int parallel,
                    String image, String runtime, boolean schemaOnly, Optional<Path> catalog, boolean check,
-                   List<String> exclude) {
+                   List<String> exclude, Optional<String> employer) {
 
         static Options parse(String[] args) {
             if (args.length < 2) {
-                throw new IllegalArgumentException("Не указан каталог банка задач");
+                throw new IllegalArgumentException("demo-seed".equals(args[0]) ? "Не указан каталог демо-сессий"
+                        : "Не указан каталог банка задач");
             }
             String variant = null;
             Integer runs = null;
@@ -258,6 +283,7 @@ public final class TaskBankCli {
             Path catalog = null;
             boolean check = false;
             List<String> exclude = List.of(TaskBankLoader.EXAMPLE_TEMPLATE);
+            String employer = null;
             List<String> rest = new ArrayList<>(List.of(args).subList(2, args.length));
             for (int i = 0; i < rest.size(); i++) {
                 String option = rest.get(i);
@@ -280,6 +306,7 @@ public final class TaskBankCli {
                     case "--image" -> image = value;
                     case "--runtime" -> runtime = value;
                     case "--catalog" -> catalog = Path.of(value);
+                    case "--employer" -> employer = value;
                     case "--exclude" -> exclude = List.of(value.split(",")).stream()
                             .map(String::strip).filter(code -> !code.isEmpty()).toList();
                     default -> throw new IllegalArgumentException("Неизвестный параметр: " + option);
@@ -296,7 +323,8 @@ public final class TaskBankCli {
                 throw new IllegalArgumentException("stats описывает весь банк, --variant не применим");
             }
             return new Options(args[0], Path.of(args[1]), Optional.ofNullable(variant), Optional.ofNullable(runs),
-                    parallel, image, runtime, schemaOnly, Optional.ofNullable(catalog), check, exclude);
+                    parallel, image, runtime, schemaOnly, Optional.ofNullable(catalog), check, exclude,
+                    Optional.ofNullable(employer));
         }
 
         private static int positive(String option, String value) {

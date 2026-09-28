@@ -5,7 +5,7 @@ import { calibrationLayout, splitStatement } from './calibration';
 
 const STATEMENT = `# Разминка перед оценкой
 
-Этот блок не влияет на оценку.
+Этот блок немного влияет на оценку.
 
 ## Часть 1. Перепечатайте фрагмент
 В файле \`Sample.txt\` находится фрагмент.
@@ -58,7 +58,7 @@ describe('warm-up layout', () => {
     const parts = splitStatement(STATEMENT);
 
     expect(parts[1]).toContain('# Разминка перед оценкой');
-    expect(parts[1]).toContain('Этот блок не влияет на оценку.');
+    expect(parts[1]).toContain('Этот блок немного влияет на оценку.');
     expect(parts[1]).toContain('## Часть 1. Перепечатайте фрагмент');
     expect(parts[1]).not.toContain('Часть 2');
     expect(parts[1]).not.toContain('Как будет проверено');

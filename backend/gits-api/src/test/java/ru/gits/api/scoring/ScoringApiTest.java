@@ -164,6 +164,64 @@ class ScoringApiTest extends CandidateSessionTest {
         assertThat(excluded).isEqualTo(2);
     }
 
+    @Test
+    void aTaskScoresTheTestsItHadToFixTheReportSaysSoAndABrokenGuardMakesItZero() throws Exception {
+        MockHttpSession employer = login(accounts.employer());
+        Candidate candidate = newCandidate(employer);
+        JsonNode session = read(candidate.post("/candidate/session/start").andReturn().getResponse());
+        UUID sessionId = id(session);
+        UUID taskId = id(list(session.get("tasks")).get(1));
+        // the validator found two hidden cases the starter already passes
+        String previous = new TransactionTemplate(transactionManager).execute(status -> {
+            var variant = sessionTasks.findById(taskId).orElseThrow().getVariant();
+            String old = variant.getValidationReport();
+            variant.refreshValidationReport("{\"runs\":{\"starter_passing_hidden\":[\"g1\",\"g2\"]}}", clock.instant());
+            return old;
+        });
+        try {
+            JsonNode task = read(candidate.get("/candidate/tasks/" + taskId).andReturn().getResponse());
+            String file = task.get("code").fieldNames().next();
+            candidate.put("/candidate/tasks/" + taskId + "/code", Map.of(file, "class Changed {}"))
+                    .andExpect(status().isNoContent());
+            UUID submit = id(read(candidate.post("/candidate/tasks/" + taskId + "/submit").andReturn()
+                    .getResponse()), "runId");
+            complete(submit, 5, 3, """
+                    [{"name":"Скрытый тест 1","status":"PASSED","hidden":true,"key":"g1"},
+                     {"name":"Скрытый тест 2","status":"PASSED","hidden":true,"key":"g2"},
+                     {"name":"Скрытый тест 3","status":"PASSED","hidden":true,"key":"f1"},
+                     {"name":"Скрытый тест 4","status":"FAILED","hidden":true,"key":"f2"},
+                     {"name":"Скрытый тест 5","status":"FAILED","hidden":true,"key":"f3"}]
+                    """);
+            candidate.post("/candidate/session/finish").andExpect(status().isOk());
+            for (UUID queued : queuedSubmits(sessionId)) {
+                failToCompile(queued);
+            }
+            assertThat(scoring.compute(sessionId).scored()).isTrue();
+
+            // one of the three tests to fix: 1/3, the two «nothing broken» ones do not add to it
+            JsonNode report = read(mvc.perform(get("/employer/sessions/" + sessionId + "/report").session(employer))
+                    .andReturn().getResponse());
+            JsonNode row = list(report.get("scorePerTask").get("tasks")).stream()
+                    .filter(r -> r.get("sessionTaskId").asText().equals(taskId.toString())).findFirst().orElseThrow();
+            assertThat(row.get("testsCounted").asInt()).isEqualTo(3);
+            assertThat(row.get("guardTests").asInt()).isEqualTo(2);
+            assertThat(row.get("share").decimalValue()).isEqualByComparingTo("0.3333");
+            JsonNode card = list(report.get("tasks")).stream()
+                    .filter(t -> t.get("id").asText().equals(taskId.toString())).findFirst().orElseThrow();
+            assertThat(card.get("counted").get("countedPassed").asInt()).isEqualTo(1);
+            assertThat(card.get("counted").get("guards").asInt()).isEqualTo(2);
+            // the warm-up is in the score (its submit did not compile: 0) and has trust rules in its indicators
+            assertThat(list(report.get("scorePerTask").get("tasks")))
+                    .anySatisfy(r -> assertThat(r.get("kind").asText()).isEqualTo("CALIBRATION"));
+            assertThat(card.get("indicators").get("trustRules").get("value").isArray()).isTrue();
+            assertThat(report.toString()).doesNotContain("\"key\"");
+        } finally {
+            new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                    sessionTasks.findById(taskId).orElseThrow().getVariant()
+                            .refreshValidationReport(previous, clock.instant()));
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------------------------
 
     private static List<Map<String, Object>> typing(double start, int count, double charsPerSecond) {

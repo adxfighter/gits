@@ -78,7 +78,14 @@ export interface CountedTests {
 /** An entry of scorePerTask.tasks (docs/indicators.md, «Предварительный балл»). */
 export interface TaskScore {
   sessionTaskId: string;
+  kind?: 'TASK' | 'CALIBRATION';
   level: Level;
+  testsCounted?: number;
+  testsCountedPassed?: number;
+  guardTests?: number | null;
+  guardTestsBroken?: number;
+  codeUnchanged?: boolean;
+  note?: string;
   weight?: number;
   share?: number;
   hiddenTestsPassed?: number;

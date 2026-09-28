@@ -296,8 +296,11 @@ public final class VariantValidator {
                         + referenceMin + ")" + (firstReferenceProblem == null ? "" : "; " + firstReferenceProblem)));
 
         int starterFailed = 0;
-        // a hidden test the starter passes in every run checks that nothing got broken; the rest must be fixed
+        // a hidden test case the starter passes in every run that reported checks that nothing got broken; the rest
+        // must be fixed. Cases, not methods: every row of a parameterised test is a case of its own. A run without a
+        // report (a hang, a crash) says nothing about single cases and is left out
         java.util.Set<String> alwaysPassed = null;
+        java.util.Set<String> seenCases = new java.util.HashSet<>();
         if (calibration) {
             checks.add(new Check("starter_fails", true, "не требуется для калибровочного блока"));
         } else {
@@ -306,7 +309,17 @@ public final class VariantValidator {
                 if (starterFailsHidden(run, hiddenTests)) {
                     starterFailed++;
                 }
-                java.util.Set<String> passedNow = passedHidden(run, hiddenTests);
+                java.util.Optional<java.util.Map<String, Boolean>> cases = hiddenCases(run, hiddenTests);
+                if (cases.isEmpty()) {
+                    continue;
+                }
+                seenCases.addAll(cases.get().keySet());
+                java.util.Set<String> passedNow = new java.util.HashSet<>();
+                cases.get().forEach((key, passed) -> {
+                    if (passed) {
+                        passedNow.add(key);
+                    }
+                });
                 if (alwaysPassed == null) {
                     alwaysPassed = passedNow;
                 } else {
@@ -314,11 +327,15 @@ public final class VariantValidator {
                 }
             }
             int guards = alwaysPassed == null ? 0 : alwaysPassed.size();
-            int fixing = hiddenTests.methods().size() - guards;
-            checks.add(new Check("starter_fails", starterFailed >= starterMin && fixing > 0,
+            int fixing = seenCases.size() - guards;
+            // no run reported (the starter hangs every time, e.g. a deadlock): every hidden test is to be fixed
+            boolean reported = !seenCases.isEmpty();
+            checks.add(new Check("starter_fails", starterFailed >= starterMin && (!reported || fixing > 0),
                     "starter провалил скрытые тесты в " + starterFailed + " из " + runs + " прогонов (нужно не менее "
-                            + starterMin + "); исправить нужно " + fixing + " из " + hiddenTests.methods().size()
-                            + " скрытых тестов, остальные " + guards + " проверяют, что ничего не сломано"));
+                            + starterMin + "); " + (reported
+                            ? "исправить нужно " + fixing + " из " + seenCases.size()
+                                    + " скрытых проверок, остальные " + guards + " проверяют, что ничего не сломано"
+                            : "заготовка ни разу не дошла до отчёта о тестах — исправить нужно все скрытые тесты")));
         }
 
         checks.add(new Check("reference_time", referenceMaxMs <= MAX_REFERENCE_MS,
@@ -351,18 +368,18 @@ public final class VariantValidator {
                 && parsed.testCases().stream().anyMatch(c -> c.status() != TestCaseResult.Status.PASSED);
     }
 
-    /** Keys of the hidden tests the starter passed in this run; none when the run did not report (timeout). */
-    private static java.util.Set<String> passedHidden(SandboxRun run, ExpectedTests hidden) {
-        java.util.Set<String> keys = new java.util.HashSet<>();
+    /** Hidden test cases of a run (key → passed); empty when the run did not report (timeout, no report). */
+    private static java.util.Optional<java.util.Map<String, Boolean>> hiddenCases(SandboxRun run, ExpectedTests hidden) {
         if (run.timedOut()) {
-            return keys;
+            return java.util.Optional.empty();
         }
         ParsedRun parsed = SandboxOutputParser.parse(run);
         if (!parsed.compiled() || !parsed.reportPresent() || !hidden.matches(parsed.testCases())) {
-            return keys;
+            return java.util.Optional.empty();
         }
-        parsed.testCases().stream().filter(TestCaseResult::passed).map(ru.gits.sandbox.TestKey::of).forEach(keys::add);
-        return keys;
+        java.util.Map<String, Boolean> cases = new java.util.HashMap<>();
+        parsed.testCases().forEach(c -> cases.put(ru.gits.sandbox.TestKey.of(c), c.passed()));
+        return java.util.Optional.of(cases);
     }
 
     // helpers ------------------------------------------------------------------------------------

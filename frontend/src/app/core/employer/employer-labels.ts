@@ -58,9 +58,9 @@ export interface IndicatorLine {
   flag: TrustLevel | null;
 }
 
-/** A rule that fired (trustRules.value): its level, text and the indicators it looks at. */
+/** A rule that fired (trustRules.value): its level (null in reports scored before levels were kept), text, indicators. */
 export interface FiredRule {
-  level: TrustLevel;
+  level: TrustLevel | null;
   reason: string;
   indicators: string[];
 }
@@ -73,7 +73,7 @@ export function firedRules(indicators: TaskReport['indicators']): FiredRule[] {
       (rule): rule is FiredRule => !!rule && typeof rule === 'object' && typeof (rule as FiredRule).reason === 'string',
     );
   }
-  return trustReasons(indicators).map((reason) => ({ level: 'YELLOW' as TrustLevel, reason, indicators: [] }));
+  return trustReasons(indicators).map((reason) => ({ level: null, reason, indicators: [] }));
 }
 
 const LEVEL_ORDER: Record<TrustLevel, number> = { GREEN: 0, YELLOW: 1, RED: 2 };
@@ -92,7 +92,7 @@ export function indicatorLines(indicators: TaskReport['indicators']): IndicatorL
     label: INDICATOR_LABELS[name] ?? name,
     explanation: indicators[name].explanation,
     flag: rules
-      .filter((rule) => rule.indicators.includes(name))
+      .filter((rule): rule is FiredRule & { level: TrustLevel } => rule.level !== null && rule.indicators.includes(name))
       .reduce<TrustLevel | null>((worst, rule) => (worst && LEVEL_ORDER[worst] >= LEVEL_ORDER[rule.level] ? worst : rule.level), null),
   }));
 }
@@ -105,7 +105,17 @@ export function guardsText(task: TaskReport): string | null {
   }
   return counted.guardsBroken > 0
     ? `Проверок «ничего не сломано»: ${counted.guards}, сломано ${counted.guardsBroken}`
-    : `Ещё ${counted.guards} скрытых тестов проверяют, что ничего не сломано: прошли`;
+    : `Ещё ${counted.guards} ${plural(counted.guards, 'скрытый тест проверяет', 'скрытых теста проверяют', 'скрытых тестов проверяют')}, что ничего не сломано: прошли`;
+}
+
+/** Russian plural: 1 тест, 2 теста, 5 тестов (and 21 тест, 22 теста, 11 тестов). */
+export function plural(n: number, one: string, few: string, many: string): string {
+  const tens = n % 100;
+  const units = n % 10;
+  if (tens >= 11 && tens <= 14) {
+    return many;
+  }
+  return units === 1 ? one : units >= 2 && units <= 4 ? few : many;
 }
 
 /** The rules that fired for a task (trustReasons.value). */
@@ -122,6 +132,12 @@ export function hiddenTestsText(task: TaskReport, excluded = false): string {
   if (task.kind === 'CALIBRATION') {
     if (task.submitStatus === null) {
       return 'Не отправлена';
+    }
+    if (excluded || task.submitStatus === 'ERROR') {
+      return 'Не проверено: сбой проверки';
+    }
+    if (task.submitStatus === 'QUEUED' || task.submitStatus === 'RUNNING') {
+      return 'Проверяется…';
     }
     const counted = task.counted;
     return counted && counted.counted > 0 ? `${counted.countedPassed} из ${counted.counted} (тесты части 2)` : '0 (тесты части 2)';

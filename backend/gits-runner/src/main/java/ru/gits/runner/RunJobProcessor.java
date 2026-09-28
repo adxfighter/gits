@@ -58,8 +58,9 @@ class RunJobProcessor {
      * One test case as stored in run_result.test_cases. {@code key} ({@link ru.gits.sandbox.TestKey}) — hidden tests
      * only: scoring matches it against the tests the starter passes; it never reaches the candidate.
      */
-    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-    record StoredTestCase(String name, String status, String message, boolean hidden, String key) {
+    record StoredTestCase(String name, String status, String message, boolean hidden,
+                          @com.fasterxml.jackson.annotation.JsonInclude(
+                                  com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) String key) {
     }
 
     private final RunJobRepository jobs;

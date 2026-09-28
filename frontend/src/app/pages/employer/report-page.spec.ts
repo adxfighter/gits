@@ -83,7 +83,7 @@ describe('ReportPage', () => {
     expect(text(warmUp)).toContain('Разминка · вес 0,5');
     // no counted tests in the fixture: its part 2 gave nothing
     expect(text(warmUp.querySelector('[data-testid="hidden-tests"]'))).toBe('0 (тесты части 2)');
-    expect(text(warmUp)).toContain('не входит в оценку');
+    expect(text(warmUp)).toContain('не входит в уровень доверия');
     expect(text(warmUp)).toContain('Перепечатка засчитана');
     // the warm-up rules do not count, so they are not listed as reasons
     expect(warmUp.querySelector('[data-testid="trust-reasons"]')).toBeNull();
@@ -111,7 +111,7 @@ describe('ReportPage', () => {
     );
     const hidden = [...root.querySelectorAll('[data-testid="hidden-tests"]')].map(text);
     expect(hidden).toEqual(['2 из 3 (тесты части 2)', 'исправлено 1 из 3', '0: код не изменён', '0: сломано проверок «ничего не сломано» — 1']);
-    expect(text(root.querySelector('[data-testid="guards"]'))).toBe('Ещё 2 скрытых тестов проверяют, что ничего не сломано: прошли');
+    expect(text(root.querySelector('[data-testid="guards"]'))).toBe('Ещё 2 скрытых теста проверяют, что ничего не сломано: прошли');
     const card = root.querySelectorAll('[data-testid="task-card"]')[1];
     expect(text(card.querySelector('[data-testid="trust-reasons"] li'))).toBe('Есть замечания: Вкладка надолго покидалась.');
     expect(card.querySelector('tr[data-indicator="focusLoss"]')?.getAttribute('data-flag')).toBe('YELLOW');

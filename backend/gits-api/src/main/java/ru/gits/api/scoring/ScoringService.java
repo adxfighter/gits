@@ -52,7 +52,8 @@ import ru.gits.core.telemetry.TelemetryBatchRepository;
 /**
  * Indicators of every task and the preliminary score of a finished session (docs/indicators.md). Runs once all its
  * submits are checked; an administrator can recompute it. The calibration block gets indicators — its typing speed
- * is the candidate's baseline — but takes part neither in the trust level nor in the score.
+ * is the candidate's baseline — but takes no part in the trust level; it counts in the score with
+ * {@code calibration-weight}, by the tests of its part 2.
  */
 @Service
 public class ScoringService {
@@ -245,7 +246,7 @@ public class ScoringService {
             row.put("kind", task.getKind());
             row.put("level", task.getVariant().getLevel());
             row.put("weight", weight);
-            row.put("testsCounted", outcome.counted() == 0 ? null : outcome.counted());
+            row.put("testsCounted", outcome.counted());
             row.put("testsCountedPassed", outcome.countedPassed());
             row.put("guardTests", outcome.guards());
             row.put("guardTestsBroken", outcome.guardsBroken());

@@ -117,7 +117,7 @@ interface TaskCard {
             <dl class="facts">
               <div><dt>Уровень</dt><dd>{{ levelLabels[card.task.level] }}</dd></div>
               <div>
-                <dt>Скрытые тесты</dt>
+                <dt>{{ card.task.kind === 'CALIBRATION' ? 'Тесты' : 'Скрытые тесты' }}</dt>
                 <dd data-testid="hidden-tests">{{ card.hiddenTests }}</dd>
                 @if (card.guards) {
                   <dd class="facts__note muted" data-testid="guards">{{ card.guards }}</dd>
@@ -129,7 +129,7 @@ interface TaskCard {
                 <dt>Доверие</dt>
                 <dd>
                   @if (card.task.kind === 'CALIBRATION') {
-                    <span class="muted">не входит в оценку</span>
+                    <span class="muted">не входит в уровень доверия</span>
                   } @else {
                     <app-trust-badge [level]="card.task.trustLevel" />
                   }
@@ -155,8 +155,11 @@ interface TaskCard {
               @if (card.rules.length > 0) {
                 <ul class="reasons" data-testid="trust-reasons">
                   @for (rule of card.rules; track $index) {
-                    <li [class]="'reason reason--' + rule.level.toLowerCase()" [attr.data-level]="rule.level">
-                      <span class="reason__level">{{ trustLabel(rule.level) }}:</span> {{ rule.reason }}
+                    <li [class]="'reason reason--' + (rule.level ?? 'unknown').toLowerCase()" [attr.data-level]="rule.level">
+                      @if (rule.level) {
+                        <span class="reason__level">{{ trustLabel(rule.level) }}:</span>
+                      }
+                      {{ rule.reason }}
                     </li>
                   }
                 </ul>

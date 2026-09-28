@@ -53,6 +53,10 @@ class TaskBankValidatorDockerTest {
                 "starter_compiles", "reference_passes", "starter_fails", "reference_time", "content_hash");
         assertThat(report.runs().referencePassed()).isEqualTo(3);
         assertThat(report.runs().starterFailed()).isEqualTo(3);
+        // the hidden cases the starter already passes check that nothing got broken; parameterised rows count one by one
+        assertThat(report.runs().starterPassingHidden()).hasSize(3).allSatisfy(key -> assertThat(key).matches("[0-9a-f]{16}"));
+        assertThat(report.checks()).filteredOn(check -> check.id().equals("starter_fails")).singleElement()
+                .satisfies(check -> assertThat(check.details()).contains("исправить нужно 4 из 7 скрытых проверок"));
         assertThat(cli("verify-hashes", tasks.resolve("java").toString()).code()).isEqualTo(TaskBankCli.EXIT_OK);
 
         // Any edit after validation invalidates the stored report

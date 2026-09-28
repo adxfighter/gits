@@ -22,7 +22,7 @@
 | `consentVersion` | версия принятого текста согласия |
 | `preliminaryScore` | предварительный балл 0–100, до психометрической калибровки; `null`, пока не посчитан |
 | `scoreComputedAt` | время расчёта балла |
-| `scorePerTask` | расчёт балла по заданиям: `tasks[]` — `task` (псевдоним), `kind`, `level`, `weight`, `testsCounted`, `testsCountedPassed` (исправляющие тесты, у разминки — тесты части 2), `guardTests`, `guardTestsBroken` (проверки «ничего не сломано»), `codeUnchanged`, `share`, `note`; в сессиях до доработки — `hiddenTestsPassed`, `hiddenTestsTotal`; у задания, не проверенного из-за сбоя платформы, — `excluded` с пояснением; `note` — пометка о предварительности |
+| `scorePerTask` | расчёт балла по заданиям: `tasks[]` — `task` (псевдоним), `kind`, `level`, `weight`, `testsCounted`, `testsCountedPassed` (исправляющие тесты, у разминки — тесты части 2), `guardTests`, `guardTestsBroken` (проверки «ничего не сломано»), `codeUnchanged`, `share`, `note` — почему задание 0, хотя тесты проходили (у задания, не проверенного из-за сбоя, — `excluded` без `kind`); в сессиях, не пересчитанных после доработки, — `hiddenTestsPassed`, `hiddenTestsTotal`; у задания, не проверенного из-за сбоя платформы, — `excluded` с пояснением; `note` — пометка о предварительности |
 
 ### tasks.jsonl — задания сессий
 | Поле | Смысл |
@@ -45,7 +45,7 @@
 | `createdAt`, `startedAt`, `finishedAt` | создание, начало и конец выполнения |
 | `code` | код, который запускался: `{путь: содержимое}` |
 | `compiled`, `testsTotal`, `testsPassed` | результат; `null`, если его нет |
-| `testCases` | тесты: `name`, `status` (`PASSED`, `FAILED`, `ERROR`, `SKIPPED`), `hidden` (скрытый тест), `message`; у скрытых тестов имя — «Скрытый тест N», `message` пуст |
+| `testCases` | тесты: `name`, `status` (`PASSED`, `FAILED`, `ERROR`, `SKIPPED`), `hidden` (скрытый тест), `message`; у скрытых тестов имя — «Скрытый тест N», `message` пуст, `key` — первые 16 hex SHA-256 от «класс#метод» (по нему балл отличает исправляющие тесты от проверок «ничего не сломано») |
 | `durationMs` | время выполнения в песочнице |
 
 ### telemetry.jsonl — телеметрия ввода
@@ -84,7 +84,7 @@
 | `task` | псевдоним задания |
 | `trustLevel` | `GREEN`, `YELLOW`, `RED` по экспериментальным правилам v1.0 (у разминки в уровень сессии не входит) |
 | `computedAt` | время расчёта |
-| `indicators` | `{имя: {value, explanation}}`: `pasteRatio`, `largestPaste`, `externalPastes`, `focusLoss`, `burstMax`, `idleThenBurst`, `linearity`, `editRatio`, `timeToFirstRun`, `runsCount`, `telemetryEvents`, `trustReasons`, у разминки — `retyping`. Определения — в `docs/indicators.md` репозитория GITS |
+| `indicators` | `{имя: {value, explanation}}`: `pasteRatio`, `largestPaste`, `externalPastes`, `focusLoss`, `burstMax`, `idleThenBurst`, `linearity`, `editRatio`, `timeToFirstRun`, `runsCount`, `telemetryEvents`, `trustReasons`, `trustRules` (сработавшие правила: `level`, `reason`, `indicators`), у разминки — `retyping`. Определения — в `docs/indicators.md` репозитория GITS |
 
 ### manifest.json
 `format`, `exportedAt`, `from`/`to` (`null` — без ограничения), `timezone` и `counts` — число строк: `sessions`, `tasks`, `runs`, `telemetryBatches`, `indicators`. Пишется последним: если архив не открывается или в нём нет `manifest.json`, выгрузка прервалась — повторите её.

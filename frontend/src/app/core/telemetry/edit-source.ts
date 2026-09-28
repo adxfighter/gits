@@ -10,17 +10,27 @@ const PASTE_WINDOW_MS = 150;
  */
 export class EditSourceTracker {
   private pasteAt = -Infinity;
+  private cutAt = -Infinity;
 
   /** A paste event on the editor. */
   paste(now: number): void {
     this.pasteAt = now;
   }
 
-  /** The source of a content change at {@code now}; a paste marks only the change that follows it. */
+  /** A cut on the editor: the deletion that follows is not typing. */
+  cut(now: number): void {
+    this.cutAt = now;
+  }
+
+  /** The source of a content change at {@code now}; a paste or cut marks only the change that follows it. */
   sourceOf(now: number): EditSource {
     if (now - this.pasteAt <= PASTE_WINDOW_MS) {
       this.pasteAt = -Infinity;
       return 'paste';
+    }
+    if (now - this.cutAt <= PASTE_WINDOW_MS) {
+      this.cutAt = -Infinity;
+      return 'other';
     }
     return 'typing';
   }

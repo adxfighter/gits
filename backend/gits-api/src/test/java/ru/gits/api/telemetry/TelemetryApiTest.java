@@ -72,6 +72,30 @@ class TelemetryApiTest extends CandidateSessionTest {
     }
 
     @Test
+    void anotherBatchWithATakenSeqIsKeptUnderTheNextSeq() throws Exception {
+        OpenTask task = openTask();
+        String first = batch(0, 0, 10, List.of(Map.of("t", 5, "type", "blur")));
+        // e.g. a beacon of the page before a reload and the first batch of the reloaded page
+        String other = batch(0, 0, 10, List.of(Map.of("t", 7, "type", "focus")));
+        send(task, first).andExpect(status().isOk()).andExpect(jsonPath("$.seq").value(0));
+
+        send(task, other).andExpect(status().isOk())
+                .andExpect(jsonPath("$.seq").value(1))
+                .andExpect(jsonPath("$.duplicate").value(false));
+        // a retry of either batch is recognized, wherever it is stored
+        send(task, other).andExpect(status().isOk())
+                .andExpect(jsonPath("$.seq").value(1))
+                .andExpect(jsonPath("$.duplicate").value(true));
+        send(task, first).andExpect(status().isOk())
+                .andExpect(jsonPath("$.seq").value(0))
+                .andExpect(jsonPath("$.duplicate").value(true));
+
+        List<TelemetryBatch> stored = batches.findBySessionTaskIdOrderBySeq(task.id());
+        assertThat(stored).extracting(TelemetryBatch::getSeq).containsExactly(0, 1);
+        assertThat(stored.get(1).getEvents()).contains("focus");
+    }
+
+    @Test
     void batchLimits() throws Exception {
         OpenTask task = openTask();
         List<Map<String, Object>> tooMany = new ArrayList<>();

@@ -8,12 +8,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.cfg.CoercionAction;
@@ -34,9 +36,13 @@ import ru.gits.core.telemetry.TelemetryBatchRepository;
 @Service
 public class TelemetryService {
 
+    /** How many later batches are compared when looking for a batch stored under another seq. */
+    private static final int MAX_RENUMBERED_LOOKUP = 50;
+
     /**
-     * Answer to a batch. {@code beaconToken} is a new one-time token when the previous one was used (JSON requests
-     * only); otherwise null.
+     * Answer to a batch. {@code seq} is the seq it is stored under: the requested one, or the next free one when
+     * another batch already had it (the page then continues after it). {@code beaconToken} is a new one-time token
+     * when the previous one was used (JSON requests only); otherwise null.
      */
     public record Accepted(int seq, boolean duplicate, Map<String, Boolean> flags, String beaconToken) {
     }
@@ -85,13 +91,6 @@ public class TelemetryService {
                 || request.clientTsEnd() == null || request.events() == null) {
             throw badRequest("Обязательны seq (не меньше 0), clientTsStart, clientTsEnd и events");
         }
-        int seq = request.seq();
-        if (batches.existsBySessionTaskIdAndSeq(task.getId(), seq)) {
-            return new Accepted(seq, true, Map.of(), beacon ? null : reissue(task));
-        }
-        if (!isOpen(task)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Задание не выполняется, телеметрия не принимается");
-        }
         if (request.events().size() > properties.maxEvents()) {
             throw tooLarge();
         }
@@ -104,6 +103,21 @@ public class TelemetryService {
             }
             events.add(event.normalized());
         }
+        int seq = request.seq();
+        var taken = batches.findBySessionTaskIdAndSeq(task.getId(), seq);
+        if (taken.isPresent()) {
+            JsonNode content = json.valueToTree(events);
+            // a repeat of a stored batch, possibly stored under a later seq after an earlier conflict
+            var same = sameBatch(task, taken.get(), content);
+            if (same != null) {
+                return new Accepted(same, true, Map.of(), beacon ? null : reissue(task));
+            }
+            // another batch with the same seq, e.g. a beacon of the page before a reload: kept under the next seq
+            seq = batches.findFirstBySessionTaskIdOrderBySeqDesc(task.getId()).orElseThrow().getSeq() + 1;
+        }
+        if (!isOpen(task)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Задание не выполняется, телеметрия не принимается");
+        }
         Map<String, Boolean> flags = flags(task, seq, request, events);
         batches.save(new TelemetryBatch(task, seq, request.clientTsStart(), request.clientTsEnd(), write(events),
                 write(flags), clock.instant()));
@@ -113,6 +127,28 @@ public class TelemetryService {
             return new Accepted(seq, false, flags, null);
         }
         return new Accepted(seq, false, flags, reissue(task));
+    }
+
+    /** The seq under which a batch with these events is stored: {@code taken} itself or one stored after it. */
+    private Integer sameBatch(SessionTask task, TelemetryBatch taken, JsonNode content) {
+        if (read(taken.getEvents()).equals(content)) {
+            return taken.getSeq();
+        }
+        for (TelemetryBatch later : batches.findBySessionTaskIdAndSeqGreaterThanEqualOrderBySeq(task.getId(),
+                taken.getSeq() + 1, Limit.of(MAX_RENUMBERED_LOOKUP))) {
+            if (read(later.getEvents()).equals(content)) {
+                return later.getSeq();
+            }
+        }
+        return null;
+    }
+
+    private JsonNode read(String value) {
+        try {
+            return json.readTree(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Stored telemetry is always JSON", e);
+        }
     }
 
     /** Timestamp checks inside the batch and against its neighbours by seq. Only raised flags are listed. */

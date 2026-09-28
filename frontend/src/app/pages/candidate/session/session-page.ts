@@ -214,6 +214,8 @@ export class SessionPage implements OnInit {
     if (!this.finalFlushDone && this.remainingSeconds() <= FINAL_FLUSH_SECONDS && !this.timeOver()) {
       this.finalFlushDone = true;
       this.saver.flushAll().catch((error: unknown) => void this.onSaveError(error));
+      // events after the deadline are not accepted: send what is buffered while the tasks are still open
+      void this.telemetry.flushAll(true);
     }
   }
 
@@ -364,7 +366,7 @@ export class SessionPage implements OnInit {
 
   private async flushTelemetry(): Promise<void> {
     await Promise.race([
-      this.telemetry.flushAll(),
+      this.telemetry.flushAll(true),
       new Promise<void>((resolve) => setTimeout(resolve, TELEMETRY_FLUSH_TIMEOUT_MS)),
     ]);
   }

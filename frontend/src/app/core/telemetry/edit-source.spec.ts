@@ -20,6 +20,13 @@ describe('EditSourceTracker', () => {
     expect(tracker.sourceOf(1050)).toBe('typing');
   });
 
+  it('does not count the deletion of a cut as typing', () => {
+    const tracker = new EditSourceTracker();
+    tracker.cut(1000);
+    expect(tracker.sourceOf(1001)).toBe('other');
+    expect(tracker.sourceOf(1100)).toBe('typing');
+  });
+
   it('does not attribute a late change to an old paste', () => {
     const tracker = new EditSourceTracker();
     tracker.paste(1000);

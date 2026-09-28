@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { describe, expect, it } from 'vitest';
 
-import { BATCH_EVENTS, MAX_BUFFERED, TelemetryStream } from './telemetry-stream';
+import { BATCH_EVENTS, MAX_BATCH_BYTES, MAX_BUFFERED, TelemetryStream } from './telemetry-stream';
 import { TelemetryAccepted, TelemetryBatch } from './telemetry.models';
 
 /** A server that stores batches by seq like the real one, and can be made to fail. */
@@ -73,7 +73,7 @@ describe('TelemetryStream', () => {
     expect(server.stored.get(7)!.clientTsStart).toBe(60_010);
   });
 
-  it('splits a long burst into batches of 1 000 events', async () => {
+  it('splits a long burst into batches of at most 1 000 events and 56 KB', async () => {
     const server = new FakeServer();
     const clock = { now: 0 };
     const s = stream(server, clock);
@@ -85,7 +85,13 @@ describe('TelemetryStream', () => {
 
     await s.flush();
 
-    expect([...server.stored.values()].map((b) => b.events.length)).toEqual([1000, 1000, 5]);
+    const batches = [...server.stored.values()];
+    expect(batches.reduce((sum, b) => sum + b.events.length, 0)).toBe(BATCH_EVENTS * 2 + 5);
+    for (const b of batches) {
+      expect(b.events.length).toBeLessThanOrEqual(BATCH_EVENTS);
+      expect(new TextEncoder().encode(JSON.stringify(b)).length).toBeLessThanOrEqual(MAX_BATCH_BYTES + 200);
+    }
+    expect(batches.map((b) => b.seq)).toEqual(batches.map((_, i) => i));
     const ends = [...server.stored.values()].map((b) => [b.clientTsStart, b.clientTsEnd]);
     // batches follow each other in time
     expect(ends[1][0]).toBeGreaterThan(ends[0][1]);
@@ -125,6 +131,49 @@ describe('TelemetryStream', () => {
     expect([...server.stored.keys()]).toEqual([0, 1]);
     expect(server.stored.get(1)!.events.map((e) => e.type)).toEqual(['blur']);
     expect(s.stats.failures).toBe(0);
+  });
+
+  it('sends at once before a submit even while a retry delay is running', async () => {
+    const server = new FakeServer();
+    const clock = { now: 0 };
+    const s = stream(server, clock);
+    s.record({ type: 'focus' });
+    server.failWith = 503;
+    await s.flush();
+    server.failWith = null;
+    s.record({ type: 'submit' });
+
+    await s.flush(true);
+
+    expect([...server.stored.values()].flatMap((b) => b.events.map((e) => e.type))).toEqual(['focus', 'submit']);
+  });
+
+  it('continues after the seq the server kept the batch under', async () => {
+    const clock = { now: 0 };
+    const s = new TelemetryStream({
+      taskId: 'task', nextSeq: 3, lastT: 0, beaconToken: null, now: () => clock.now,
+      // another batch had seq 3 and 4: the server kept this one as 5
+      send: async (_taskId, batch) => ({ seq: batch.seq + 2, duplicate: false, flags: {}, beaconToken: null }),
+    });
+    s.record({ type: 'focus' });
+    await s.flush();
+    expect(s.lastSeq()).toBe(5);
+  });
+
+  it('offers the batch being sent to the beacon too, since closing the page may cancel the request', async () => {
+    const clock = { now: 0 };
+    let release!: () => void;
+    const s = new TelemetryStream({
+      taskId: 'task', nextSeq: 0, lastT: 0, beaconToken: 'token-1', now: () => clock.now,
+      send: (_taskId, batch) =>
+        new Promise((resolve) => (release = () => resolve({ seq: batch.seq, duplicate: false, flags: {}, beaconToken: null }))),
+    });
+    s.record({ type: 'blur' });
+    const upload = s.flush();
+
+    expect(JSON.parse(s.beaconBody()!).seq).toBe(0);
+    release();
+    await upload;
   });
 
   it('keeps the batch when the server answers duplicate, e.g. after a beacon landed', async () => {

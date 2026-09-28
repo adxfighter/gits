@@ -10,6 +10,7 @@ import { TelemetryDebug } from '../../../core/telemetry/telemetry-collector.serv
     <aside class="telemetry-debug" aria-label="Отладка телеметрии" data-testid="telemetry-debug">
       <strong>Телеметрия</strong>
       <div>в буфере: {{ state().buffered }} · отброшено: {{ state().dropped }} · ошибок подряд: {{ state().failures }}</div>
+      <div>beacon не принят браузером: {{ state().beaconFailed }}</div>
       <div>обработчик: {{ state().handlerMs.toFixed(3) }} мс в среднем</div>
       <div>последний seq: {{ seqs() }}</div>
       <div>{{ counts() }}</div>

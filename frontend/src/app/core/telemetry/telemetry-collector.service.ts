@@ -20,6 +20,8 @@ export interface TelemetryDebug {
   lastSeq: Record<string, number>;
   dropped: number;
   failures: number;
+  /** Beacons the browser refused (e.g. over its size limit). */
+  beaconFailed: number;
   /** Average time of an event handler, milliseconds. */
   handlerMs: number;
 }
@@ -28,6 +30,8 @@ interface Throttled {
   last: number;
   timer?: ReturnType<typeof setTimeout>;
   body?: TelemetryEventBody;
+  /** The stream of the task the pending event belongs to, even if the candidate switches tasks meanwhile. */
+  stream?: TelemetryStream | null;
 }
 
 /**
@@ -48,6 +52,9 @@ export class TelemetryCollector {
   private readonly selection: Throttled = { last: -Infinity };
   /** Edits of the content change being handled, re-marked if a completion command follows. */
   private lastEdits: TelemetryEvent[] = [];
+  /** A DOM paste event preceded the current paste (Monaco's context menu pastes without one). */
+  private domPaste = false;
+  private beaconFailed = 0;
   private handlerTotal = 0;
   private handlerCount = 0;
   private readonly counts: Partial<Record<TelemetryEventType, number>> = {};
@@ -57,6 +64,7 @@ export class TelemetryCollector {
     lastSeq: {},
     dropped: 0,
     failures: 0,
+    beaconFailed: 0,
     handlerMs: 0,
   });
 
@@ -114,9 +122,12 @@ export class TelemetryCollector {
     this.measure(() => this.record({ type }));
   }
 
-  /** Uploads everything buffered; awaited before a submit and before the session is finished. */
-  async flushAll(): Promise<void> {
-    await Promise.all([...this.streams.values()].map((stream) => stream.flush()));
+  /**
+   * Uploads everything buffered. {@code force} (before a submit, the end of the session or the deadline) also
+   * skips a running retry delay.
+   */
+  async flushAll(force = false): Promise<void> {
+    await Promise.all([...this.streams.values()].map((stream) => stream.flush(force)));
     this.publish();
   }
 
@@ -149,11 +160,34 @@ export class TelemetryCollector {
       editor.onDidChangeCursorSelection((e) =>
         this.measure(() => {
           const model = editor.getModel();
-          if (model && !e.selection.isEmpty()) {
+          if (model && e.selection.isEmpty()) {
+            // a collapsed selection is not sent later as if it were still there
+            this.cancel(this.selection);
+          } else if (model) {
             const start = model.getOffsetAt(e.selection.getStartPosition());
             const end = model.getOffsetAt(e.selection.getEndPosition());
             this.throttle(this.selection, { type: 'select', file: fileOf(model), offset: start, length: end - start });
           }
+        }),
+      ),
+      editor.onDidPaste(() =>
+        this.measure(() => {
+          const model = editor.getModel();
+          if (!model) {
+            return;
+          }
+          if (!this.domPaste) {
+            // pasted from the context menu: no DOM event came first, so the edits were taken for typing
+            let length = 0;
+            for (const event of this.lastEdits) {
+              if (event.type === 'edit') {
+                event.source = 'paste';
+                length += event.textLength;
+              }
+            }
+            this.record({ type: 'paste', file: fileOf(model), length });
+          }
+          this.domPaste = false;
         }),
       ),
       editor.onDidLayoutChange((layout) =>
@@ -163,14 +197,21 @@ export class TelemetryCollector {
     const node = editor.getDomNode();
     const onPaste = (e: ClipboardEvent): void =>
       this.measure(() => {
-        this.sources.paste(performance.now());
+        const length = e.clipboardData?.getData('text/plain').length ?? 0;
         const model = editor.getModel();
-        if (model) {
-          this.record({ type: 'paste', file: fileOf(model), length: e.clipboardData?.getData('text/plain').length ?? 0 });
+        if (length === 0 || !model) {
+          // nothing textual is pasted (e.g. an image): no change follows
+          return;
         }
+        this.sources.paste(performance.now());
+        this.domPaste = true;
+        this.record({ type: 'paste', file: fileOf(model), length });
       });
-    const onCopy = (): void =>
+    const onCopy = (e: Event): void =>
       this.measure(() => {
+        if (e.type === 'cut') {
+          this.sources.cut(performance.now());
+        }
         const model = editor.getModel();
         const selection = editor.getSelection();
         if (model && selection) {
@@ -228,8 +269,7 @@ export class TelemetryCollector {
     this.record({ type: 'completion', accepted: true, insertedLength: inserted });
   }
 
-  private record(body: TelemetryEventBody): TelemetryEvent | null {
-    const stream = this.current;
+  private record(body: TelemetryEventBody, stream: TelemetryStream | null = this.current): TelemetryEvent | null {
     if (!stream) {
       return null;
     }
@@ -248,21 +288,35 @@ export class TelemetryCollector {
     const now = performance.now();
     if (now - state.last >= CURSOR_INTERVAL_MS) {
       state.last = now;
-      clearTimeout(state.timer);
-      state.timer = undefined;
-      state.body = undefined;
+      this.cancel(state);
       this.record(body);
       return;
     }
+    if (state.stream !== undefined && state.stream !== this.current) {
+      // the pending event belongs to the task left a moment ago: it goes there now
+      this.flushThrottled(state);
+    }
     state.body = body;
-    state.timer ??= setTimeout(() => {
-      state.timer = undefined;
-      state.last = performance.now();
-      if (state.body) {
-        this.record(state.body);
-        state.body = undefined;
-      }
-    }, CURSOR_INTERVAL_MS - (now - state.last));
+    state.stream = this.current;
+    state.timer ??= setTimeout(() => this.flushThrottled(state), CURSOR_INTERVAL_MS - (now - state.last));
+  }
+
+  private flushThrottled(state: Throttled): void {
+    clearTimeout(state.timer);
+    state.timer = undefined;
+    state.last = performance.now();
+    if (state.body) {
+      this.record(state.body, state.stream ?? null);
+    }
+    state.body = undefined;
+    state.stream = undefined;
+  }
+
+  private cancel(state: Throttled): void {
+    clearTimeout(state.timer);
+    state.timer = undefined;
+    state.body = undefined;
+    state.stream = undefined;
   }
 
   /** The page is hidden or closing: whatever is buffered goes with sendBeacon, authorized by the task's token. */
@@ -273,7 +327,13 @@ export class TelemetryCollector {
     for (const stream of this.streams.values()) {
       const body = stream.beaconBody();
       if (body) {
-        navigator.sendBeacon(this.api.telemetryUrl(stream.taskId), new Blob([body], { type: 'text/plain;charset=UTF-8' }));
+        const queued = navigator.sendBeacon(
+          this.api.telemetryUrl(stream.taskId),
+          new Blob([body], { type: 'text/plain;charset=UTF-8' }),
+        );
+        if (!queued) {
+          this.beaconFailed++;
+        }
       }
     }
   }
@@ -293,6 +353,7 @@ export class TelemetryCollector {
       lastSeq: Object.fromEntries(streams.map((s) => [s.taskId, s.lastSeq()])),
       dropped: streams.reduce((sum, s) => sum + s.stats.dropped, 0),
       failures: streams.reduce((sum, s) => sum + s.stats.failures, 0),
+      beaconFailed: this.beaconFailed,
       handlerMs: this.handlerCount ? this.handlerTotal / this.handlerCount : 0,
     });
   }

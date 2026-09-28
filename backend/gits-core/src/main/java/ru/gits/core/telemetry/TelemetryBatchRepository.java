@@ -11,6 +11,8 @@ public interface TelemetryBatchRepository extends JpaRepository<TelemetryBatch, 
 
     boolean existsBySessionTaskIdAndSeq(UUID sessionTaskId, int seq);
 
+    Optional<TelemetryBatch> findBySessionTaskIdAndSeq(UUID sessionTaskId, int seq);
+
     List<TelemetryBatch> findBySessionTaskIdOrderBySeq(UUID sessionTaskId);
 
     /** The batch just before {@code seq} (batches may arrive out of order). */

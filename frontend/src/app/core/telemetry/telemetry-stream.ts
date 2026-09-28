@@ -5,8 +5,11 @@ import { TelemetryAccepted, TelemetryBatch, TelemetryEvent, TelemetryEventBody }
 export const BATCH_EVENTS = 1000;
 /** Unsent events kept while the server cannot be reached; the oldest are dropped beyond it. */
 export const MAX_BUFFERED = 20_000;
-/** Stays well below the server's 256 KB per batch (UTF-8 JSON). */
-const MAX_BATCH_BYTES = 200 * 1024;
+/**
+ * Batches stay below the 64 KiB a browser lets sendBeacon (keepalive) carry, so any pending batch can go with the
+ * beacon when the page closes; the server itself accepts up to 256 KB.
+ */
+export const MAX_BATCH_BYTES = 56 * 1024;
 const MAX_RETRY_DELAY_MS = 30_000;
 
 export interface StreamStats {
@@ -93,10 +96,13 @@ export class TelemetryStream {
   }
 
   /**
-   * Uploads what is buffered, batch after batch, unless a retry delay is running. Concurrent calls share the
-   * upload in flight.
+   * Uploads what is buffered, batch after batch, unless a retry delay is running; {@code force} ignores the delay
+   * (before a submit or the end of the session nothing may wait). Concurrent calls share the upload in flight.
    */
-  flush(): Promise<void> {
+  flush(force = false): Promise<void> {
+    if (force && !this.inFlight) {
+      this.retryAt = 0;
+    }
     this.inFlight ??= this.upload().finally(() => {
       this.inFlight = null;
     });
@@ -105,11 +111,12 @@ export class TelemetryStream {
 
   /**
    * The body for navigator.sendBeacon when the page is hidden or closed: the pending batch (or a new one) with the
-   * task's one-time token. The batch stays pending: if the page lives on, it is resent as JSON and the server
-   * answers "duplicate" when the beacon arrived.
+   * task's one-time token, also while that batch is being sent as JSON (the browser may cancel the request when the
+   * page closes). The batch stays pending: if the page lives on, it is resent as JSON and the server answers
+   * "duplicate" when the beacon arrived.
    */
   beaconBody(): string | null {
-    if (this.closed || !this.beaconToken || this.inFlight) {
+    if (this.closed || !this.beaconToken) {
       return null;
     }
     const batch = this.batch();
@@ -125,7 +132,8 @@ export class TelemetryStream {
       try {
         const accepted = await this.send(this.taskId, batch);
         this.pending = null;
-        this.seq = batch.seq + 1;
+        // the server may keep the batch under a later seq when its seq was taken (docs/telemetry.md)
+        this.seq = Math.max(batch.seq, accepted.seq) + 1;
         this.stats.sent += batch.events.length;
         this.retryAt = 0;
         this.stats.failures = 0;
@@ -142,6 +150,7 @@ export class TelemetryStream {
   private fail(error: unknown, batch: TelemetryBatch): void {
     const status = statusOf(error);
     if (status === 409 || status === 403 || status === 401) {
+      // 401: the candidate's access ended (session finished or expired)
       // the task is closed or not the candidate's any more: nothing will be accepted
       this.closed = true;
       this.stats.dropped += this.buffered();
@@ -175,7 +184,8 @@ export class TelemetryStream {
       bytes += size;
       count++;
     }
-    const events = this.events.splice(0, count);
+    // copies: a batch, once formed, is resent exactly as it was first sent
+    const events = this.events.splice(0, count).map((event) => ({ ...event }));
     this.pending = {
       seq: this.seq,
       clientTsStart: events[0].t,
@@ -186,8 +196,8 @@ export class TelemetryStream {
   }
 }
 
-/** UTF-8 size of an event in JSON, closely enough for batching (text dominates edit events). */
+/** Upper bound of the UTF-8 size of an event in JSON: a character of text takes at most 3 bytes. */
 function approximateBytes(event: TelemetryEvent): number {
   const text = 'text' in event ? event.text : '';
-  return 120 + text.length * 3;
+  return JSON.stringify(event).length + 1 + text.length * 2;
 }

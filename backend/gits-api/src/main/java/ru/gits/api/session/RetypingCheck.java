@@ -12,6 +12,8 @@ public final class RetypingCheck {
 
     public static final double PASS_PERCENT = 95.0;
     public static final int PASTE_MIN_CHARS = 10;
+    /** Longer typed texts are not compared exactly: the edit distance is quadratic, and they fail anyway. */
+    static final int MAX_LENGTH_RATIO = 3;
 
     /** {@code similarityPercent} 0-100 with one decimal; {@code message} is shown to the candidate as it is. */
     public record Result(double similarityPercent, boolean passed, boolean pasteSuspected, String message) {
@@ -43,7 +45,9 @@ public final class RetypingCheck {
 
     /**
      * Similarity in percent: 100 × (1 − edit distance / length of the longer text), both texts without whitespace.
-     * An empty typed text gives 0.
+     * An empty typed text gives 0. A typed text more than {@value #MAX_LENGTH_RATIO} times longer than the sample
+     * gets the upper bound 1 − length difference / longer length instead of the exact value (well below 95% either
+     * way), so one check never costs more than a few milliseconds.
      */
     public static double similarityPercent(String sample, String typed) {
         String a = withoutWhitespace(sample);
@@ -52,7 +56,9 @@ public final class RetypingCheck {
         if (longer == 0) {
             return 100.0;
         }
-        double similarity = 1.0 - (double) distance(a, b) / longer;
+        int shorter = Math.min(a.length(), b.length());
+        int distance = shorter > 0 && longer <= (long) MAX_LENGTH_RATIO * shorter ? distance(a, b) : longer - shorter;
+        double similarity = 1.0 - (double) distance / longer;
         return Math.floor(similarity * 1000) / 10.0;
     }
 
@@ -63,8 +69,13 @@ public final class RetypingCheck {
 
     static String withoutWhitespace(String text) {
         StringBuilder result = new StringBuilder(text.length());
-        text.codePoints().filter(c -> !Character.isWhitespace(c)).forEach(result::appendCodePoint);
+        text.codePoints().filter(c -> !isSpace(c)).forEach(result::appendCodePoint);
         return result.toString();
+    }
+
+    /** Whitespace in the broad sense: also no-break and zero-width spaces a copied text may bring along. */
+    private static boolean isSpace(int c) {
+        return Character.isWhitespace(c) || Character.isSpaceChar(c) || c == 0x200B || c == 0xFEFF;
     }
 
     /** Levenshtein distance in two rows: a warm-up fragment has about a thousand characters. */

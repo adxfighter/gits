@@ -33,23 +33,30 @@ public record CalibrationFiles(TaskFile sample, TaskFile typing) {
     }
 
     /**
-     * The largest paste into the typing file, in non-whitespace characters, from stored telemetry events
-     * (docs/telemetry.md): an edit with {@code source: paste}, or a paste event where no edit was recorded.
+     * The largest block of text that appeared in the typing file at once, in non-whitespace characters, from stored
+     * telemetry events (docs/telemetry.md). In the warm-up nothing inserts several characters by itself (completion,
+     * auto-closing and auto-indent are off), so any single insertion — pasted, dropped or injected, whatever its
+     * {@code source} — counts; undo and redo only bring back what was typed. A paste event's length is used only for
+     * a paste whose edit was not recorded.
      */
     public int largestPaste(Iterable<JsonNode> events) {
         int fromEdits = 0;
+        boolean pasteEdit = false;
         int fromPasteEvents = 0;
         for (JsonNode event : events) {
             if (!typing.getPath().equals(event.path("file").asText())) {
                 continue;
             }
-            if ("edit".equals(event.path("type").asText()) && "paste".equals(event.path("source").asText())) {
-                fromEdits = Math.max(fromEdits, RetypingCheck.meaningfulLength(event.path("text").asText("")));
+            if ("edit".equals(event.path("type").asText())) {
+                pasteEdit |= "paste".equals(event.path("source").asText());
+                boolean restoring = event.path("isUndo").asBoolean() || event.path("isRedo").asBoolean();
+                if (!restoring) {
+                    fromEdits = Math.max(fromEdits, RetypingCheck.meaningfulLength(event.path("text").asText("")));
+                }
             } else if ("paste".equals(event.path("type").asText())) {
                 fromPasteEvents = Math.max(fromPasteEvents, event.path("length").asInt());
             }
         }
-        // the pasted text of an edit counts only non-whitespace; a paste event's length is the fallback
-        return fromEdits > 0 ? fromEdits : fromPasteEvents;
+        return pasteEdit || fromEdits > 0 ? fromEdits : fromPasteEvents;
     }
 }

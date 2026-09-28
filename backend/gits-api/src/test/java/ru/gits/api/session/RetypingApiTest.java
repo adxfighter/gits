@@ -102,6 +102,40 @@ class RetypingApiTest extends CandidateSessionTest {
     }
 
     @Test
+    void anyLargeInsertionCountsButUndoAndWhitespaceDoNot() throws Exception {
+        Warmup dropped = openWarmup();
+        // a selection dragged in: no paste event, recorded as typing, but 60 characters at once
+        telemetry(dropped, 0, List.of(edit(dropped, 1, dropped.sample().substring(0, 60), "typing", false)));
+        assertThat(read(check(dropped, dropped.taskId(), Map.of(dropped.typingPath(), dropped.sample())).andReturn()
+                .getResponse()).get("pasteSuspected").asBoolean()).isTrue();
+
+        Warmup honest = openWarmup();
+        telemetry(honest, 0, List.of(
+                edit(honest, 1, "p", "typing", false),
+                // Ctrl+Z bringing back a deleted line, and a paste of indentation only
+                edit(honest, 2, honest.sample().substring(0, 60), "other", true),
+                Map.of("t", 3, "type", "paste", "file", honest.typingPath(), "length", 12),
+                edit(honest, 3.5, "            ", "paste", false)));
+        JsonNode result = read(check(honest, honest.taskId(), Map.of(honest.typingPath(), honest.sample())).andReturn()
+                .getResponse());
+        assertThat(result.get("pasteSuspected").asBoolean()).isFalse();
+        assertThat(result.get("passed").asBoolean()).isTrue();
+    }
+
+    private Map<String, Object> edit(Warmup w, double t, String text, String source, boolean undo) {
+        return Map.of("t", t, "type", "edit", "file", w.typingPath(), "rangeOffset", 0, "rangeLength", 0,
+                "textLength", text.length(), "text", text, "source", source, "isUndo", undo);
+    }
+
+    private void telemetry(Warmup w, int seq, List<Map<String, Object>> events) throws Exception {
+        mvc.perform(post("/candidate/tasks/" + w.taskId() + "/telemetry").cookie(w.candidate().cookie()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("seq", seq, "clientTsStart", 1, "clientTsEnd", 4,
+                                "events", events))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void onlyAnOpenWarmupHasARetypingCheck() throws Exception {
         Warmup w = openWarmup();
         w.candidate().get("/candidate/tasks/" + w.otherTask()).andExpect(status().isOk());

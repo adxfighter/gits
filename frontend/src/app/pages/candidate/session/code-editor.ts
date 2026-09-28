@@ -121,6 +121,9 @@ export class CodeEditor {
         autoClosingBrackets: calibration ? 'never' : 'languageDefined',
         autoClosingQuotes: calibration ? 'never' : 'languageDefined',
         autoIndent: calibration ? 'none' : 'full',
+        // in the warm-up text only gets in by typing: dragging a selection in would bypass paste detection
+        dragAndDrop: !calibration,
+        dropIntoEditor: { enabled: !calibration },
         formatOnType: false,
       });
     });

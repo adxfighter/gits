@@ -82,6 +82,20 @@ class RetypingCheckTest {
     }
 
     @Test
+    void aTextFarLongerThanTheSampleIsBoundedCheaply() {
+        String huge = "x".repeat(200_000);
+        long start = System.nanoTime();
+        double similarity = RetypingCheck.similarityPercent(SAMPLE, huge);
+        assertThat((System.nanoTime() - start) / 1_000_000).isLessThan(200);
+        assertThat(similarity).isLessThan(1.0);
+    }
+
+    @Test
+    void noBreakAndZeroWidthSpacesAreWhitespaceToo() {
+        assertThat(RetypingCheck.similarityPercent("int x = 1;", "int\u00A0x\u200B=\u00A01;")).isEqualTo(100.0);
+    }
+
+    @Test
     void meaningfulLengthIgnoresWhitespace() {
         assertThat(RetypingCheck.meaningfulLength("  a b\n\tc  ")).isEqualTo(3);
         assertThat(RetypingCheck.meaningfulLength(null)).isZero();

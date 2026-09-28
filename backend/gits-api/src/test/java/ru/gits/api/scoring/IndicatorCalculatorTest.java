@@ -68,6 +68,14 @@ class IndicatorCalculatorTest {
             return this;
         }
 
+        /** A paste of text that was already in the task's code or statement (ownCode). */
+        Stream pasteOwn(String text) {
+            t += 200;
+            events.add(new InputEvent(t, "edit", "paste", FILE, cursor, 0, text.length(), false, null, null, 0, true));
+            cursor += text.length();
+            return this;
+        }
+
         Stream copy(int length) {
             t += 100;
             events.add(new InputEvent(t, "copy", null, FILE, 0, 0, 0, false, null, null, length));
@@ -221,6 +229,29 @@ class IndicatorCalculatorTest {
 
         Stream foreign = new Stream().type(chars(300), 5).copy(120).paste(chars(250));
         assertThat(calculator.compute(foreign.events, 550, null, null, 0).largestPaste()).isEqualTo(250);
+    }
+
+    @Test
+    void pastesOfTheTasksOwnCodeOrStatementAreNotCopying() {
+        Stream s = new Stream().type(chars(200), 5).pasteOwn(chars(150)).paste(chars(40));
+
+        var result = calculator.compute(s.events, 390, null, null, 0);
+
+        assertThat(result.pastedChars()).isEqualTo(40);
+        assertThat(result.largestPaste()).isEqualTo(40);
+        assertThat(result.externalPastes()).isEqualTo(1);
+        assertThat(calculator.compute(new Stream().type(chars(200), 5).pasteOwn(chars(150)).events, 350, null, null,
+                0).externalPastes()).isZero();
+    }
+
+    @Test
+    void externalPastesCountNonWhitespaceCharactersLikeThePage() {
+        // "\n        i++;" from outside: 13 characters, but 4 without whitespace — below the threshold
+        List<InputEvent> events = List.of(
+                new InputEvent(1000, "edit", "paste", FILE, 0, 0, 13, false, null, null, 0, false, 4),
+                new InputEvent(2000, "edit", "paste", FILE, 13, 0, 30, false, null, null, 0, false, 24));
+
+        assertThat(calculator.compute(events, 43, null, null, 0).externalPastes()).isEqualTo(1);
     }
 
     @Test

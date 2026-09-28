@@ -26,6 +26,10 @@ final class IndicatorTexts {
         map.put("largestPaste", new Entry(i.largestPaste(), i.largestPaste() == 0
                 ? "Вставок не было."
                 : "Наибольшая вставка — " + i.largestPaste() + " симв."));
+        map.put("externalPastes", new Entry(i.externalPastes(), i.externalPastes() == 0
+                ? "Вставок текста не из кода и не из условия задачи не было."
+                : "Вставок текста не из кода и не из условия задачи: " + i.externalPastes()
+                + " — подозрение на копирование."));
         map.put("focusLoss", new Entry(Map.of("count", i.focusLossCount(), "seconds", i.focusLossSeconds()),
                 i.focusLossCount() == 0
                         ? "Вкладку с задачей не покидали."

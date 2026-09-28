@@ -72,6 +72,8 @@ export class SessionPage implements OnInit {
   protected readonly telemetry = inject(TelemetryCollector);
   protected readonly debug = new URLSearchParams(location.search).get('debug') === '1';
   private readonly editor = viewChild(CodeEditor);
+  private readonly statementElement = viewChild<ElementRef<HTMLElement>>('statementElement');
+  private readonly resultsElement = viewChild<ElementRef<HTMLElement>>('resultsElement');
   private readonly overlayButton = viewChild<ElementRef<HTMLButtonElement>>('overlayButton');
 
   protected readonly session = signal<SessionView | null>(null);
@@ -143,6 +145,29 @@ export class SessionPage implements OnInit {
     effect(() => {
       if (this.timeOver()) {
         queueMicrotask(() => this.overlayButton()?.nativeElement.focus());
+      }
+    });
+    // a paste is checked against the task's files and its statement as the candidate sees it
+    this.telemetry.setSourceLookup((exclude) => {
+      const task = this.task();
+      const editor = this.editor();
+      if (!task || !editor) {
+        return [];
+      }
+      // the statement and the run results (expected values, compiler messages) are the task's text too
+      return [
+        ...editor.texts(task, exclude),
+        this.statementElement()?.nativeElement.textContent ?? '',
+        this.resultsElement()?.nativeElement.textContent ?? '',
+      ];
+    });
+    effect(() => {
+      const suspicion = this.telemetry.copySuspicion();
+      if (suspicion) {
+        this.notice.set(
+          `Подозрение на копирование: вставлен текст (${suspicion.length} симв.), которого нет ни в коде, ни в ` +
+            'условии задачи. Решение должно быть вашим — такие вставки видит работодатель.',
+        );
       }
     });
   }

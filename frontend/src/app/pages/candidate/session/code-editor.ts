@@ -140,6 +140,20 @@ export class CodeEditor {
     return files;
   }
 
+  /**
+   * The current text of every file of a task, for the check of where a paste comes from: open files from their
+   * models, the others as saved. {@code exclude} cuts out a part just inserted into a file.
+   */
+  texts(task: TaskView, exclude?: { file: string; offset: number; length: number }): string[] {
+    return task.files.map((file) => {
+      const model = this.models.get(this.key(task.id, file.path));
+      const text = model?.getValue() ?? (file.editable ? (task.code[file.path] ?? file.content) : file.content);
+      return exclude && exclude.file === file.path
+        ? text.slice(0, exclude.offset) + text.slice(exclude.offset + exclude.length)
+        : text;
+    });
+  }
+
   focus(): void {
     this.editor?.focus();
   }

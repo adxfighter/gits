@@ -89,6 +89,9 @@ gits:
         when: ["pasteRatio > 0.25"]
         explanation: Заметная доля итогового кода добавлена вставкой.
       - level: YELLOW
+        when: ["externalPastes >= 1"]
+        explanation: Был вставлен текст не из кода и не из условия задачи — подозрение на копирование.
+      - level: YELLOW
         when: ["largestPaste > 300"]
         explanation: Была крупная вставка кода (больше 300 символов).
       - level: YELLOW

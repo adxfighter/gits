@@ -6,6 +6,7 @@ import { CandidateApi } from '../candidate/candidate-api.service';
 import { TaskView } from '../candidate/candidate.models';
 import { MonacoLoader } from '../editor/monaco-loader.service';
 import { EditSourceTracker } from './edit-source';
+import { EXTERNAL_PASTE_MIN, PasteVerdict, judgePaste, withoutSpace } from './own-code';
 import { classifyKey } from './key-class';
 import { TelemetryStream } from './telemetry-stream';
 import { TelemetryEvent, TelemetryEventBody, TelemetryEventType } from './telemetry.models';
@@ -13,6 +14,19 @@ import { TelemetryEvent, TelemetryEventBody, TelemetryEventType } from './teleme
 const FLUSH_INTERVAL_MS = 2000;
 /** Cursor and selection events are thinned out to at most 10 per second. */
 const CURSOR_INTERVAL_MS = 100;
+/** Texts copied or cut in the editor that a later paste may bring back (the candidate's own). */
+const COPIED_KEPT = 20;
+/** The warm-up's retyping file (part 1), checked by the platform against the sample. */
+const RETYPING_FILE = 'Typing.txt';
+
+/** The texts a paste may legitimately come from; {@code exclude} is the part just inserted into a file. */
+export type SourceLookup = (exclude?: { file: string; offset: number; length: number }) => string[];
+
+/** A paste of text found neither in the task's code nor in its statement, shown to the candidate at once. */
+export interface CopySuspicion {
+  at: number;
+  length: number;
+}
 
 export interface TelemetryDebug {
   counts: Partial<Record<TelemetryEventType, number>>;
@@ -54,7 +68,16 @@ export class TelemetryCollector {
   private lastEdits: TelemetryEvent[] = [];
   /** A DOM paste event preceded the current paste (Monaco's context menu pastes without one). */
   private domPaste = false;
+  /** Verdict of the DOM paste in progress, for the edits it produces. */
+  private pasteOwn = false;
   private beaconFailed = 0;
+  private sourceLookup: SourceLookup = () => [];
+  private readonly copied: string[] = [];
+  /** A large insertion without a paste event, judged after Monaco has said whether it was a completion. */
+  private pendingInsert: { events: TelemetryEvent[]; file: string; offset: number; text: string } | null = null;
+  private calibration = false;
+  /** The last suspicious paste in a regular task; the warm-up has its own retyping check. */
+  readonly copySuspicion = signal<CopySuspicion | null>(null);
   private handlerTotal = 0;
   private handlerCount = 0;
   private readonly counts: Partial<Record<TelemetryEventType, number>> = {};
@@ -119,6 +142,12 @@ export class TelemetryCollector {
       this.record({ type: document.hasFocus() ? 'focus' : 'blur' });
     }
     this.current = stream;
+    this.calibration = task.kind === 'CALIBRATION';
+  }
+
+  /** Where the page takes the texts a paste is checked against: the task's files and its statement. */
+  setSourceLookup(lookup: SourceLookup): void {
+    this.sourceLookup = lookup;
   }
 
   /** Run and submit buttons (and Ctrl+Enter). */
@@ -182,14 +211,29 @@ export class TelemetryCollector {
           }
           if (!this.domPaste) {
             // pasted from the context menu: no DOM event came first, so the edits were taken for typing
+            this.pendingInsert = null;
+            const file = fileOf(model);
             let length = 0;
+            let own = true;
+            let worst: PasteVerdict | null = null;
+            // with several cursors every piece went to its own place: each is judged without itself
             for (const event of this.lastEdits) {
-              if (event.type === 'edit') {
-                event.source = 'paste';
-                length += event.textLength;
+              if (event.type !== 'edit') {
+                continue;
+              }
+              const verdict = this.judge(event.text, { file, offset: event.rangeOffset, length: event.text.length }, file);
+              event.source = 'paste';
+              event.ownCode = verdict.own;
+              length += event.text.length;
+              own &&= verdict.own;
+              if (verdict.suspicious && (!worst || verdict.meaningful > worst.meaningful)) {
+                worst = verdict;
               }
             }
-            this.record({ type: 'paste', file: fileOf(model), length });
+            this.record({ type: 'paste', file, length, ownCode: own });
+            if (worst) {
+              this.warn(worst);
+            }
           }
           this.domPaste = false;
         }),
@@ -198,18 +242,24 @@ export class TelemetryCollector {
         this.measure(() => this.record({ type: 'resize', width: layout.width, height: layout.height })),
       ),
     ];
-    const node = editor.getDomNode();
+    // the container, not getDomNode(): that one is null while the editor has no model yet (at attach time)
+    const node = editor.getContainerDomNode();
     const onPaste = (e: ClipboardEvent): void =>
       this.measure(() => {
-        const length = e.clipboardData?.getData('text/plain').length ?? 0;
+        const text = e.clipboardData?.getData('text/plain') ?? '';
         const model = editor.getModel();
-        if (length === 0 || !model) {
+        if (text.length === 0 || !model || editor.getRawOptions().readOnly) {
+          // nothing textual is pasted (e.g. an image), or the file is read-only: no change follows
           // nothing textual is pasted (e.g. an image): no change follows
           return;
         }
         this.sources.paste(performance.now());
         this.domPaste = true;
-        this.record({ type: 'paste', file: fileOf(model), length });
+        // checked before Monaco inserts it: the files are still as they were
+        const verdict = this.judge(text, undefined, fileOf(model));
+        this.pasteOwn = verdict.own;
+        this.record({ type: 'paste', file: fileOf(model), length: text.length, ownCode: verdict.own });
+        this.warn(verdict);
       });
     const onCopy = (e: Event): void =>
       this.measure(() => {
@@ -217,9 +267,18 @@ export class TelemetryCollector {
           this.sources.cut(performance.now());
         }
         const model = editor.getModel();
-        const selection = editor.getSelection();
-        if (model && selection) {
-          this.record({ type: 'copy', file: fileOf(model), length: model.getValueInRange(selection).length });
+        const selections = editor.getSelections() ?? [];
+        if (model && selections.length > 0) {
+          // what Monaco puts on the clipboard: every selection, or the whole line when nothing is selected
+          const pieces = selections.map((selection) =>
+            selection.isEmpty() ? model.getLineContent(selection.startLineNumber) + model.getEOL()
+              : model.getValueInRange(selection));
+          const text = pieces.join(model.getEOL());
+          this.remember(text);
+          if (pieces.length > 1) {
+            pieces.forEach((piece) => this.remember(piece));
+          }
+          this.record({ type: 'copy', file: fileOf(model), length: text.length });
         }
       });
     // capture: runs before Monaco applies the paste, so the change that follows is known to be a paste
@@ -253,15 +312,72 @@ export class TelemetryCollector {
         isUndo: e.isUndoing,
         isRedo: e.isRedoing,
         source,
+        ...(source === 'paste' ? { ownCode: this.pasteOwn } : {}),
       });
       if (event) {
         this.lastEdits.push(event);
+      }
+    }
+    const change = e.changes[0];
+    if (source === 'typing' && e.changes.length === 1 && withoutSpace(change.text).length >= EXTERNAL_PASTE_MIN) {
+      // text that arrived without a paste event (dragged in, inserted by an extension): judged once Monaco has
+      // run a completion's command, if it was one
+      this.pendingInsert = { events: [...this.lastEdits], file, offset: change.rangeOffset, text: change.text };
+      queueMicrotask(() => this.measure(() => this.judgeInsert()));
+    }
+  }
+
+  private judgeInsert(): void {
+    const insert = this.pendingInsert;
+    this.pendingInsert = null;
+    if (!insert) {
+      return;
+    }
+    const verdict = this.judge(insert.text, { file: insert.file, offset: insert.offset, length: insert.text.length },
+      insert.file);
+    for (const event of insert.events) {
+      if (event.type === 'edit') {
+        event.source = 'paste';
+        event.ownCode = verdict.own;
+      }
+    }
+    this.record({ type: 'paste', file: insert.file, length: insert.text.length, ownCode: verdict.own });
+    this.warn(verdict);
+  }
+
+  /**
+   * Whether a pasted text is the candidate's own: in the task's files or statement, or copied in the editor
+   * before. In the warm-up's retyping file nothing is own: retyping means typing (its check is on the server);
+   * part 2 of the warm-up is judged like any task.
+   */
+  private judge(text: string, exclude: { file: string; offset: number; length: number } | undefined,
+                file: string): PasteVerdict {
+    if (this.calibration && file.endsWith('/' + RETYPING_FILE)) {
+      const meaningful = withoutSpace(text).length;
+      return { meaningful, own: false, suspicious: false };
+    }
+    return judgePaste(text, [...this.sourceLookup(exclude), ...this.copied]);
+  }
+
+  private warn(verdict: PasteVerdict): void {
+    if (verdict.suspicious) {
+      this.copySuspicion.set({ at: Date.now(), length: verdict.meaningful });
+    }
+  }
+
+  private remember(text: string): void {
+    if (withoutSpace(text).length >= EXTERNAL_PASTE_MIN) {
+      this.copied.push(text);
+      if (this.copied.length > COPIED_KEPT) {
+        this.copied.shift();
       }
     }
   }
 
   /** Monaco runs the item's command right after inserting it: the edits just recorded came from the completion. */
   private completionAccepted(): void {
+    // the insertion came from a completion, not from outside
+    this.pendingInsert = null;
     let inserted = 0;
     for (const event of this.lastEdits) {
       if (event.type === 'edit') {

@@ -17,7 +17,7 @@ import java.util.Set;
 final class IndicatorCalculator {
 
     /** Everything computed for one task; {@code burstRelative} and {@code timeToFirstRunSeconds} may be unknown. */
-    record TaskIndicators(double pasteRatio, int pastedChars, int largestPaste, int focusLossCount,
+    record TaskIndicators(double pasteRatio, int pastedChars, int largestPaste, int externalPastes, int focusLossCount,
                           double focusLossSeconds, double burstMax, Double burstRelative, int idleThenBurst,
                           double linearity, double editRatio, int typedChars, Double timeToFirstRunSeconds,
                           int runsCount, int telemetryEvents) {
@@ -28,6 +28,7 @@ final class IndicatorCalculator {
             values.put("pasteRatio", pasteRatio);
             values.put("pastedChars", (double) pastedChars);
             values.put("largestPaste", (double) largestPaste);
+            values.put("externalPastes", (double) externalPastes);
             values.put("focusLossCount", (double) focusLossCount);
             values.put("focusLossSeconds", focusLossSeconds);
             values.put("burstMax", burstMax);
@@ -59,7 +60,7 @@ final class IndicatorCalculator {
      * @param baseSpeed      the candidate's typing speed from the calibration block (chars/s), null if unknown
      */
     /** Names the trust rules may refer to. */
-    static final Set<String> NAMES = Set.of("pasteRatio", "pastedChars", "largestPaste", "focusLossCount",
+    static final Set<String> NAMES = Set.of("pasteRatio", "pastedChars", "largestPaste", "externalPastes", "focusLossCount",
             "focusLossSeconds", "burstMax", "burstRelative", "idleThenBurst", "linearity", "editRatio", "typedChars",
             "timeToFirstRun", "runsCount", "telemetryEvents");
 
@@ -78,25 +79,35 @@ final class IndicatorCalculator {
                 }
             }
         }
-        List<Integer> pastes = foreignPastes(ordered);
-        int pasted = pastes.stream().mapToInt(Integer::intValue).sum();
-        int largestPaste = pastes.stream().mapToInt(Integer::intValue).max().orElse(0);
+        List<InputEvent> pastes = foreignPastes(ordered);
+        int pasted = pastes.stream().mapToInt(InputEvent::textLength).sum();
+        int largestPaste = pastes.stream().mapToInt(InputEvent::textLength).max().orElse(0);
+        // non-whitespace characters, the threshold the candidate's warning uses
+        int externalPastes = (int) pastes.stream().filter(p -> p.meaningfulLength() >= EXTERNAL_PASTE_MIN).count();
         double pasteRatio = finalCodeChars <= 0 ? 0 : Math.min(1.0, (double) pasted / finalCodeChars);
         double[] focus = focusLoss(ordered);
         double burstMax = burstMax(ordered);
         Double burstRelative = baseSpeed == null || baseSpeed <= 0 ? null : burstMax / baseSpeed;
-        return new TaskIndicators(round(pasteRatio), pasted, largestPaste, (int) focus[0], round(focus[1]),
+        return new TaskIndicators(round(pasteRatio), pasted, largestPaste, externalPastes, (int) focus[0],
+                round(focus[1]),
                 round(burstMax), burstRelative == null ? null : round(burstRelative), idleThenBurst(ordered),
                 round(linearity(ordered)), inserted == 0 ? 0 : round((double) deleted / inserted), typed,
                 timeToFirstRunSeconds == null ? null : round(timeToFirstRunSeconds), runsCount, events.size());
     }
 
     /**
-     * Sizes of pastes that brought text from outside: a paste undone right away does not count, nor one of the
-     * candidate's own code copied or cut in the editor before (moving code around).
+     * A paste this long (characters) of text found neither in the task's code nor in its statement is a suspicion
+     * of copying.
      */
-    static List<Integer> foreignPastes(List<InputEvent> ordered) {
-        List<Integer> pastes = new ArrayList<>();
+    static final int EXTERNAL_PASTE_MIN = 10;
+
+    /**
+     * Sizes of pastes that brought text from outside: a paste undone right away does not count, nor one of the
+     * candidate's own code or the statement — found there at the moment of the paste ({@code ownCode}), or copied
+     * or cut in the editor before (moving code around).
+     */
+    static List<InputEvent> foreignPastes(List<InputEvent> ordered) {
+        List<InputEvent> pastes = new ArrayList<>();
         Set<Integer> copied = new HashSet<>();
         Integer lastPaste = null;
         for (InputEvent event : ordered) {
@@ -104,12 +115,12 @@ final class IndicatorCalculator {
                 copied.add(event.length());
             } else if (event.isPaste()) {
                 lastPaste = null;
-                if (!copied.contains(event.textLength())) {
-                    pastes.add(event.textLength());
+                if (event.isExternalPaste() && !copied.contains(event.textLength())) {
+                    pastes.add(event);
                     lastPaste = pastes.size() - 1;
                 }
             } else if (event.isEdit()) {
-                if (lastPaste != null && event.undo() && event.rangeLength() == pastes.get(lastPaste)) {
+                if (lastPaste != null && event.undo() && event.rangeLength() == pastes.get(lastPaste).textLength()) {
                     pastes.remove((int) lastPaste);
                 }
                 lastPaste = null;

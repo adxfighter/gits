@@ -27,4 +27,9 @@ public interface InviteRepository extends JpaRepository<Invite, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from Invite i where i.id = :id")
     Optional<Invite> lockById(UUID id);
+
+    /** An invite of the employer's own company; other companies' invites are not found. */
+    Optional<Invite> findByIdAndCompanyId(UUID id, UUID companyId);
+
+    List<Invite> findByCompanyIdAndStatusOrderByCreatedAtDesc(UUID companyId, InviteStatus status);
 }

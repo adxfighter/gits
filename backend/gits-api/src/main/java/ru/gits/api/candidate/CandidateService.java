@@ -43,7 +43,7 @@ public class CandidateService {
     // An expired invite is marked EXPIRED even though the request fails with 410
     @Transactional(noRollbackFor = ResponseStatusException.class)
     public CandidatePrincipal enter(String token) {
-        Invite invite = invites.findByTokenHash(Hashing.sha256Hex(token))
+        Invite invite = invites.lockByTokenHash(Hashing.sha256Hex(token))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ссылка недействительна"));
         switch (invite.getStatus()) {
             case COMPLETED -> throw gone("Оценка по этой ссылке уже пройдена");

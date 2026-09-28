@@ -26,7 +26,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -60,8 +59,6 @@ import ru.gits.core.session.AssessmentSessionRepository;
 import ru.gits.core.session.SessionStatus;
 import ru.gits.core.session.SessionTaskRepository;
 import ru.gits.core.session.SessionTaskStatus;
-import ru.gits.core.task.FileKind;
-import ru.gits.core.task.TaskFile;
 import ru.gits.core.task.TaskFileRepository;
 import ru.gits.core.task.TaskTemplateRepository;
 import ru.gits.core.task.TaskVariantRepository;

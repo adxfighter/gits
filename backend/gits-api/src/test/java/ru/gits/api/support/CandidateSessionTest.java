@@ -194,6 +194,32 @@ public abstract class CandidateSessionTest extends ApiTest {
         }
     }
 
+    /**
+     * The response contains nothing of the variant's SOLUTION and HIDDEN_TEST files, nor its validation data. Only
+     * lines found exclusively in the secret files are checked: shared lines (package, imports) prove nothing.
+     */
+    protected void assertNoSecrets(String response, UUID variantId) throws Exception {
+        List<TaskFile> secret = taskFiles.findByVariantIdAndKindIn(variantId,
+                List.of(FileKind.SOLUTION, FileKind.HIDDEN_TEST));
+        Set<String> visibleLines = taskFiles.findByVariantIdAndKindIn(variantId,
+                        List.of(FileKind.STARTER, FileKind.READONLY, FileKind.VISIBLE_TEST)).stream()
+                .flatMap(file -> file.getContent().lines()).map(String::strip).collect(Collectors.toSet());
+        assertThat(secret).as("the variant has secret files to check").isNotEmpty();
+        for (TaskFile file : secret) {
+            List<String> secretLines = file.getContent().lines().map(String::strip)
+                    .filter(line -> line.length() > 20 && !visibleLines.contains(line)).toList();
+            for (String line : secretLines) {
+                assertThat(response).as("%s must not leak", file.getPath())
+                        .doesNotContain(json.writeValueAsString(line).replaceAll("^\"|\"$", ""));
+            }
+            if (file.getKind() == FileKind.HIDDEN_TEST) {
+                assertThat(response).doesNotContain(file.getPath());
+            }
+        }
+        assertThat(response).doesNotContain("HIDDEN_TEST").doesNotContain("SOLUTION")
+                .doesNotContain("validation").doesNotContain("content_hash").doesNotContain("contentHash");
+    }
+
     protected Set<String> variantCodes(UUID sessionId) {
         return new TransactionTemplate(transactionManager).execute(status ->
                 sessionTasks.findBySessionIdOrderByOrderNo(sessionId).stream()

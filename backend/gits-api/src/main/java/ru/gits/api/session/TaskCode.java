@@ -15,7 +15,7 @@ import ru.gits.core.task.TaskFile;
 import ru.gits.core.task.TaskVariant;
 
 /** Code snapshots of a session task: JSON {path: content} of the editable files only. */
-final class TaskCode {
+public final class TaskCode {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -34,7 +34,7 @@ final class TaskCode {
     }
 
     /** The saved snapshot, or the starter when nothing was saved yet. */
-    static Map<String, String> current(String snapshot, List<TaskFile> files) {
+    public static Map<String, String> current(String snapshot, List<TaskFile> files) {
         if (snapshot == null || snapshot.isBlank()) {
             return starter(files);
         }
@@ -61,7 +61,7 @@ final class TaskCode {
     }
 
     /** First "# heading" of the statement, which every variant starts with. */
-    static String title(TaskVariant variant) {
+    public static String title(TaskVariant variant) {
         return variant.getStatementMd().lines()
                 .filter(line -> line.startsWith("# "))
                 .map(line -> line.substring(2).strip())

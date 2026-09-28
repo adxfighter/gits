@@ -50,4 +50,8 @@ public interface RunJobRepository extends JpaRepository<RunJob, UUID> {
 
     /** The latest run of a task, if any. */
     Optional<RunJob> findFirstBySessionTaskIdOrderByCreatedAtDesc(UUID sessionTaskId);
+
+    List<RunJob> findBySessionTaskIdOrderByCreatedAt(UUID sessionTaskId);
+
+    Optional<RunJob> findFirstBySessionTaskIdAndModeOrderByCreatedAtDesc(UUID sessionTaskId, RunMode mode);
 }

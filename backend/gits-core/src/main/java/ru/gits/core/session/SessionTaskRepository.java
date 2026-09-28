@@ -27,4 +27,7 @@ public interface SessionTaskRepository extends JpaRepository<SessionTask, UUID> 
                 LIMIT :sessions)
             """, nativeQuery = true)
     List<String> findVariantCodesOfRecentSessions(UUID companyId, int sessions);
+
+    /** A task of a session of the employer's own company. */
+    Optional<SessionTask> findByIdAndSessionInviteCompanyId(UUID id, UUID companyId);
 }

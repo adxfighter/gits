@@ -1,6 +1,7 @@
 package ru.gits.core.session;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,4 +20,9 @@ public interface AssessmentSessionRepository extends JpaRepository<AssessmentSes
               AND s.started_at + make_interval(mins => s.time_limit_min) <= :now
             """, nativeQuery = true)
     List<UUID> findInviteIdsOfOverdueSessions(Instant now);
+
+    /** A session of the employer's own company. */
+    Optional<AssessmentSession> findByIdAndInviteCompanyId(UUID id, UUID companyId);
+
+    List<AssessmentSession> findByInviteIdIn(Collection<UUID> inviteIds);
 }

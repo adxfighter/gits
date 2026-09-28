@@ -20,7 +20,7 @@ if (Test-Path 'sandbox/java/Dockerfile') {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-docker compose up --build -d
+docker compose up --build -d --wait
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 docker compose ps
 $port = (Select-String -Path '.env' -Pattern '^WEB_PORT=(.+)$').Matches.Groups[1].Value

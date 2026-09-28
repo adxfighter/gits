@@ -57,6 +57,6 @@ docker run --rm -i \
 JVM тестов: `-Xmx384m -Xss512k -XX:+UseSerialGC -XX:TieredStopAtLevel=1` — быстрый старт важнее пиковой производительности.
 
 ## Самопроверка
-`scripts/sandbox-selftest.sh` (Linux) или `scripts/sandbox-selftest.ps1` (Windows, через Git Bash) собирает образ и запускает «злые» программы из `selftest/`: сетевые запросы, бесконечный цикл, fork-бомбу, выделение 2 ГБ, запись в образ, поиск секретов и docker-сокета, подделку маркеров протокола, поток вывода. Запускается в CI на каждый pull request.
+`scripts/sandbox-selftest.sh` (Linux) или `scripts/sandbox-selftest.ps1` (Windows, через Git Bash) собирает образ и запускает «злые» программы из `selftest/`: сетевые запросы, бесконечный цикл, fork-бомбу, выделение 2 ГБ, запись в образ, поиск секретов и docker-сокета, подделку маркеров протокола, поток вывода. Запускается в CI на каждый pull request. Переменные: `SANDBOX_IMAGE`, `SANDBOX_RUNTIME`, `SANDBOX_TIMEOUT` (30 с), `SKIP_BUILD=1` — без сборки образа.
 
 Типичное время запуска простой задачи — около 3 секунд на прогретой машине (Windows, Docker Desktop).

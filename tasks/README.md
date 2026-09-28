@@ -49,7 +49,7 @@ tasks/
 | `rubric` | 3–6 пунктов для ревьюера |
 
 ## Проверки валидатора
-`java -jar backend/gits-taskbank/target/gits-taskbank-exec.jar validate tasks/java [--variant T01-v03] [--runs N] [--parallel N]`, либо `scripts/validate-tasks.sh` / `scripts/validate-tasks.ps1`.
+`java -jar backend/gits-taskbank/target/gits-taskbank-exec.jar validate tasks/java [--variant T01-v03] [--runs N] [--parallel N] [--image …] [--runtime …]`, либо `scripts/validate-tasks.sh` / `scripts/validate-tasks.ps1` — те же параметры, а также `--changed-since <git-ref>` (только изменённые варианты, как в CI); `REBUILD=1` пересобирает jar валидатора.
 
 | № | Проверка | Условие |
 |---|---|---|

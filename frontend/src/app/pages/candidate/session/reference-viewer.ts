@@ -6,6 +6,7 @@ import {
   effect,
   inject,
   input,
+  output,
   signal,
   viewChild,
 } from '@angular/core';
@@ -28,6 +29,9 @@ import { MonacoApi, MonacoLoader } from '../../../core/editor/monaco-loader.serv
 })
 export class ReferenceViewer {
   readonly content = input.required<string>();
+  readonly label = input('Образец, только чтение');
+  /** Ctrl+S with the focus on the sample saves the candidate's code, as in the main editor. */
+  readonly saveRequested = output<void>();
 
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
   private readonly monaco = signal<MonacoApi | null>(null);
@@ -52,7 +56,9 @@ export class ReferenceViewer {
           // a model without a URI of its own: it never clashes with the task's models
           model: monaco.editor.createModel(this.content(), 'java'),
           contextmenu: false,
+          ariaLabel: this.label(),
         });
+        this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => this.saveRequested.emit());
         this.monaco.set(monaco);
       })
       .catch(() => undefined);

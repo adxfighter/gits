@@ -113,7 +113,12 @@ export class SessionPage implements OnInit {
 
   /** The warm-up is shown in two parts: retyping on a split screen, then a short task. */
   protected readonly calibration = computed(() => calibrationLayout(this.task()));
-  protected readonly calibrationPart = signal<CalibrationPart>(1);
+  /** The part of each warm-up task the candidate is on; kept while the page is open. */
+  private readonly calibrationParts = signal<Record<string, CalibrationPart>>({});
+  protected readonly calibrationPart = computed<CalibrationPart>(() => {
+    const id = this.currentTaskId();
+    return (id && this.calibrationParts()[id]) || 1;
+  });
   protected readonly split = computed(() => !!this.calibration() && this.calibrationPart() === 1);
   protected readonly statement = computed(() => {
     const layout = this.calibration();
@@ -124,7 +129,8 @@ export class SessionPage implements OnInit {
     if (!layout) {
       return this.task()?.files ?? [];
     }
-    return this.calibrationPart() === 1 ? [layout.reference, layout.typing] : layout.others;
+    // part 1: the sample is always shown on top, the list holds only the file typed into
+    return this.calibrationPart() === 1 ? [layout.typing] : layout.others;
   });
 
   constructor() {
@@ -192,13 +198,19 @@ export class SessionPage implements OnInit {
     if (!layout) {
       return;
     }
-    this.calibrationPart.set(part);
+    const id = this.currentTaskId()!;
+    this.calibrationParts.update((parts) => ({ ...parts, [id]: part }));
+    this.showCalibrationPart(layout, part);
+    // straight to typing: the part switch is a step of the warm-up, not a setting
+    this.editor()?.focus();
+  }
+
+  private showCalibrationPart(layout: NonNullable<ReturnType<typeof calibrationLayout>>, part: CalibrationPart): void {
     const target = part === 1 ? layout.typing
         : (layout.others.find((f) => f.kind === 'STARTER' && f.editable) ?? layout.others[0]);
     if (target) {
       this.activePath.set(target.path);
     }
-    this.editor()?.focus();
   }
 
   protected selectFile(path: string): void {
@@ -223,9 +235,8 @@ export class SessionPage implements OnInit {
     this.currentTaskId.set(id);
     const layout = calibrationLayout(task);
     if (layout) {
-      // the warm-up always opens on part 1: the typing file under the sample
-      this.calibrationPart.set(1);
-      this.activePath.set(layout.typing.path);
+      // the warm-up opens on the part the candidate left it on, part 1 the first time
+      this.showCalibrationPart(layout, this.calibrationParts()[id] ?? 1);
       return;
     }
     const editable = task.files.find((f) => f.kind === 'STARTER' && f.editable);

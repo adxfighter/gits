@@ -130,7 +130,12 @@
       <div class="ws__pane-title" data-testid="reference-title">
         <span aria-hidden="true">🔒</span> {{ fileName(calibration()!.reference.path) }} — образец, только чтение
       </div>
-      <app-reference-viewer class="ws__reference" [content]="calibration()!.reference.content" />
+      <app-reference-viewer
+        class="ws__reference"
+        [content]="calibration()!.reference.content"
+        [label]="'Образец ' + fileName(calibration()!.reference.path) + ', только чтение'"
+        (saveRequested)="saveNow()"
+      />
       <div class="ws__pane-title ws__pane-title--typing" data-testid="typing-title">
         {{ fileName(calibration()!.typing.path) }} — наберите фрагмент здесь, между тройными кавычками
       </div>

@@ -51,7 +51,9 @@ function fakeEditor(taskId: string) {
     onDidPaste: paste.event,
     onDidLayoutChange: layout.event,
     getModel: () => model,
-    getDomNode: () => node,
+    // like Monaco: no DOM node until a model is set; the container is always there
+    getDomNode: () => null,
+    getContainerDomNode: () => node,
     getSelection: () => ({}),
   } as unknown as Monaco.editor.IStandaloneCodeEditor;
   return {

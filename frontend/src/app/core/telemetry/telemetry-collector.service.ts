@@ -231,7 +231,8 @@ export class TelemetryCollector {
         this.measure(() => this.record({ type: 'resize', width: layout.width, height: layout.height })),
       ),
     ];
-    const node = editor.getDomNode();
+    // the container, not getDomNode(): that one is null while the editor has no model yet (at attach time)
+    const node = editor.getContainerDomNode();
     const onPaste = (e: ClipboardEvent): void =>
       this.measure(() => {
         const text = e.clipboardData?.getData('text/plain') ?? '';

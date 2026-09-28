@@ -63,8 +63,16 @@ public class DemoExportService {
         if (label == null || label.isBlank() || label.length() > 200) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Нужна метка демо-сессии, до 200 символов");
         }
-        List<DemoSession.Task> tasks = sessionTasks.findBySessionIdOrderByOrderNo(sessionId).stream()
-                .map(this::task).toList();
+        List<SessionTask> sessionTaskList = sessionTasks.findBySessionIdOrderByOrderNo(sessionId);
+        // a run still queued would be run again by the runner after the seed, and the score would miss it
+        boolean unchecked = sessionTaskList.stream()
+                .flatMap(task -> runs.findBySessionTaskIdOrderByCreatedAt(task.getId()).stream())
+                .anyMatch(job -> !job.getStatus().isFinal());
+        if (unchecked) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Не все решения сессии проверены: выгрузить можно, когда проверка закончится");
+        }
+        List<DemoSession.Task> tasks = sessionTaskList.stream().map(this::task).toList();
         return new DemoSession(DemoSession.FORMAT, label.strip(), session.getInvite().getTargetLevel(),
                 session.getStatus(), session.getTimeLimitMin(), session.getRandomSeed(), session.getStartedAt(),
                 session.getFinishedAt(), tasks);

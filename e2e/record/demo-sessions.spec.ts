@@ -9,7 +9,7 @@ import { solutionFor } from '../support/task-bank';
 
 // Records the three demo sessions of P16 through the real candidate UI, so that their telemetry is what the
 // platform really collects: an honest solution, a solution from large pastes, and «retyping from a second screen».
-// Each is exported by the admin API into seed/demo-sessions. Run: npm run record-demo (takes ~20 minutes).
+// Each is exported by the admin API into seed/demo-sessions. Run: npm run record-demo (takes 20–30 minutes).
 
 test.describe.configure({ mode: 'serial' });
 

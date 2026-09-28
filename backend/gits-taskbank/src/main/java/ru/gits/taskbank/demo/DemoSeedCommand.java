@@ -60,7 +60,8 @@ public final class DemoSeedCommand {
                     context.getBean(PlatformTransactionManager.class), Clock.systemUTC());
             DemoSessionImporter.Summary summary = importer.importDirectory(directory, employerEmail);
             summary.messages().forEach(out::println);
-            out.println("Демо-сессии: загружено " + summary.imported() + ", пропущено " + summary.skipped());
+            out.println("Демо-сессии: загружено " + summary.imported() + ", уже были " + summary.present()
+                    + ", не загружено " + summary.rejected());
             return summary;
         }
     }

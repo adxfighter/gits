@@ -87,9 +87,16 @@ test('истечение времени', async ({ browser }) => {
   // 90 minutes pass: the session is moved back in time rather than waited for
   sql(`UPDATE assessment_session SET started_at = started_at - interval '91 minutes' WHERE id = '${id}'`);
   await page.reload();
-  await expect(page.getByRole('alertdialog')).toContainText('Время вышло');
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Завершить' }).click();
-  // the server closes the session (its expiry check runs every 30 s) and submits the tasks as they were
+  // the workspace says the time is over; if the server's expiry check (every 30 s) closed the session first,
+  // the page goes straight to the end
+  const overlay = page.getByRole('alertdialog');
+  const thanks = page.getByRole('heading', { name: 'Спасибо!' });
+  await expect(overlay.or(thanks)).toBeVisible();
+  if (await overlay.isVisible()) {
+    await expect(overlay).toContainText('Время вышло');
+    // «Завершить» closes the overdue session as expired, the tasks are submitted as they were
+    await overlay.getByRole('button', { name: 'Завершить' }).click();
+  }
   await expect
     .poll(() => sql(`SELECT status FROM assessment_session WHERE id = '${id}'`), { timeout: 90_000 })
     .toBe('EXPIRED');

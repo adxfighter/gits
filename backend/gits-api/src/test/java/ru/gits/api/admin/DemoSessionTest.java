@@ -59,7 +59,7 @@ class DemoSessionTest extends CandidateSessionTest {
         DemoSessionImporter.Summary summary = importer.importDirectory(seed, demoEmployer.email());
         assertThat(summary.imported()).isEqualTo(1);
         // run again: nothing twice
-        assertThat(importer.importDirectory(seed, demoEmployer.email()).skipped()).isEqualTo(1);
+        assertThat(importer.importDirectory(seed, demoEmployer.email()).present()).isEqualTo(1);
 
         MockHttpSession employer = login(demoEmployer);
         List<JsonNode> invites = list(read(mvc.perform(get("/employer/invites").session(employer))
@@ -94,6 +94,12 @@ class DemoSessionTest extends CandidateSessionTest {
         UUID running = id(read(candidate.post("/candidate/session/start").andReturn().getResponse()));
         mvc.perform(get("/admin/sessions/" + running + "/demo-export").param("label", "Демо").session(admin))
                 .andExpect(status().isConflict());
+        // finished, but its submits are still in the queue: the seed would run them again
+        Candidate queued = newCandidate();
+        UUID unchecked = id(read(queued.post("/candidate/session/start").andReturn().getResponse()));
+        queued.post("/candidate/session/finish").andExpect(status().isOk());
+        mvc.perform(get("/admin/sessions/" + unchecked + "/demo-export").param("label", "Демо").session(admin))
+                .andExpect(status().isConflict());
         UUID finished = finishedSession();
         mvc.perform(get("/admin/sessions/" + finished + "/demo-export").param("label", " ").session(admin))
                 .andExpect(status().isBadRequest());
@@ -104,12 +110,27 @@ class DemoSessionTest extends CandidateSessionTest {
     }
 
     @Test
-    void aFileOfAnotherFormatOrWithAnUnknownVariantIsNotSeeded() throws Exception {
+    void aBadFileIsReportedAndTheOthersAreStillSeeded() throws Exception {
         TestAccounts.Account demoEmployer = accounts.employer();
-        Files.writeString(seed.resolve("wrong.json"), "{\"format\":\"something-else\",\"tasks\":[]}");
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> importer().importDirectory(seed, demoEmployer.email()))
-                .hasMessageContaining("gits-demo-session/1");
-        Files.delete(seed.resolve("wrong.json"));
+        Files.writeString(seed.resolve("a-wrong-format.json"), "{\"format\":\"something-else\",\"tasks\":[]}");
+        Files.writeString(seed.resolve("b-not-json.json"), "{ not json");
+        Files.writeString(seed.resolve("c-queued-run.json"), """
+                {"format":"gits-demo-session/1","candidateLabel":"Демо: в очереди","targetLevel":"MIDDLE",
+                 "status":"FINISHED","timeLimitMin":90,"randomSeed":1,"startedAt":"2026-09-01T09:00:00Z",
+                 "finishedAt":"2026-09-01T10:00:00Z","tasks":[{"orderNo":1,"kind":"TASK","variantCode":"T01-v01",
+                 "status":"SUBMITTED","runs":[{"mode":"SUBMIT","status":"QUEUED",
+                 "createdAt":"2026-09-01T10:00:00Z","payload":{}}],"telemetry":[]}]}
+                """);
+        DemoSessionImporter.Summary bad = importer().importDirectory(seed, demoEmployer.email());
+        assertThat(bad.files()).isEqualTo(3);
+        assertThat(bad.rejected()).isEqualTo(3);
+        assertThat(bad.messages()).anySatisfy(m -> assertThat(m).contains("gits-demo-session/1"))
+                .anySatisfy(m -> assertThat(m).contains("незавершённый"));
+        try (var files = Files.list(seed)) {
+            for (Path file : files.toList()) {
+                Files.delete(file);
+            }
+        }
         Files.writeString(seed.resolve("unknown.json"), """
                 {"format":"gits-demo-session/1","candidateLabel":"Демо: нет варианта","targetLevel":"MIDDLE",
                  "status":"FINISHED","timeLimitMin":90,"randomSeed":1,"startedAt":"2026-09-01T09:00:00Z",
@@ -117,7 +138,7 @@ class DemoSessionTest extends CandidateSessionTest {
                  "status":"SUBMITTED","runs":[],"telemetry":[]}]}
                 """);
         DemoSessionImporter.Summary summary = importer().importDirectory(seed, demoEmployer.email());
-        assertThat(summary.skipped()).isEqualTo(1);
+        assertThat(summary.rejected()).isEqualTo(1);
         assertThat(summary.messages().get(0)).contains("T99-v09");
     }
 

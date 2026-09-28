@@ -22,7 +22,7 @@
 Чтобы отчёт и воспроизведение можно было показать сразу, есть три записанные сессии (`seed/demo-sessions`): честное решение, решение крупными вставками и перепечатывание со второго экрана.
 - С нуля: `powershell -ExecutionPolicy Bypass -File scripts/demo-reset.ps1` или `scripts/demo-reset.sh` — **удаляет базу**, запускает стек и загружает демо-сессии в компанию демо-работодателя (`-Yes` / `--yes` — без вопроса). Балл и индикаторы появляются в течение минуты.
 - В работающий стек: `docker compose --profile tools run --rm --build taskbank demo-seed /seed/demo-sessions` (уже загруженные пропускаются).
-- Свою сессию в демо: администратор выгружает завершённую сессию — `GET /api/admin/sessions/{id}/demo-export?label=…` — и кладёт файл в `seed/demo-sessions`. Записать демо-сессии заново сценарием: `cd e2e && npm run record-demo` (на работающем стеке, около 30 минут). Подробнее — [ADR 0014](docs/adr/0014-e2e-and-demo-data.md).
+- Свою сессию в демо: администратор выгружает завершённую сессию — `GET /api/admin/sessions/{id}/demo-export?label=…` — и кладёт файл в `seed/demo-sessions`. Записать демо-сессии заново сценарием: `cd e2e && npm run record-demo` (на работающем стеке, 20–30 минут; оставляет приглашения «Запись: Демо: …»). Подробнее — [ADR 0014](docs/adr/0014-e2e-and-demo-data.md).
 
 ## Сервисы
 | Сервис | Назначение | Порт хоста |
@@ -31,6 +31,7 @@
 | api | REST API, миграции БД | — |
 | runner | исполнение кода кандидатов в контейнерах песочницы | — |
 | postgres | PostgreSQL 17 | 127.0.0.1:5432 |
+| taskbank | CLI банка задач и `demo-seed` (профиль `tools`, только `docker compose run`) | — |
 
 ## Разработка
 ```bash
@@ -42,8 +43,9 @@ E2E-тесты (Playwright) — против запущенного стека (
 cd e2e
 npm ci
 npx playwright install chromium
-npx playwright test   # около минуты; создают приглашения и сессии с меткой «E2E …»
+npx playwright test   # несколько минут; создают приглашения и сессии с меткой «E2E …»
 ```
+После `demo-seed` с переменной `GITS_DEMO_SEEDED=1` проверяются и демо-сессии (`tests/demo-seed.spec.ts`), без неё этот тест пропускается.
 Правила проекта для разработчиков и ИИ-ассистента — в [CLAUDE.md](CLAUDE.md), архитектурные решения — в [docs/adr](docs/adr), план разработки — в [docs/prompts/prompts-v1.0.md](docs/prompts/prompts-v1.0.md).
 
 ## Статус

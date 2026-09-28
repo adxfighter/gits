@@ -230,9 +230,11 @@ public final class TaskBankCli {
         }
         try {
             var summary = ru.gits.taskbank.demo.DemoSeedCommand.run(options.root(), employer.strip(), out);
-            boolean onlyPresent = summary.messages().stream().filter(m -> m.contains("пропущена"))
-                    .allMatch(m -> m.contains("уже есть"));
-            return onlyPresent ? EXIT_OK : EXIT_FAILED;
+            if (summary.files() == 0) {
+                out.println("В каталоге " + options.root() + " нет демо-файлов *.json");
+                return EXIT_ERROR;
+            }
+            return summary.rejected() == 0 ? EXIT_OK : EXIT_FAILED;
         } catch (RuntimeException e) {
             out.println("Демо-сессии не загружены: " + rootMessage(e));
             return EXIT_ERROR;

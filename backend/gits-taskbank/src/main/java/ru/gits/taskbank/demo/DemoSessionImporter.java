@@ -56,8 +56,19 @@ public final class DemoSessionImporter {
     /** The consent version the demo candidates «accepted» (gits-api ConsentText.CURRENT_VERSION). */
     static final int CONSENT_VERSION = 1;
 
-    public record Summary(int imported, int skipped, List<String> messages) {
+    /**
+     * {@code files} — demo files found, {@code imported}, {@code present} — already in the company (a repeated
+     * seed), {@code rejected} — not loaded because of a problem in the file or the bank (see {@code messages}).
+     */
+    public record Summary(int files, int imported, int present, int rejected, List<String> messages) {
+
+        public int skipped() {
+            return present + rejected;
+        }
     }
+
+    /** The largest label an invite holds (invite.candidate_label). */
+    static final int MAX_LABEL = 200;
 
     public record Repositories(AppUserRepository users, InviteRepository invites, ConsentRepository consents,
                                AssessmentSessionRepository sessions, SessionTaskRepository tasks,
@@ -94,20 +105,42 @@ public final class DemoSessionImporter {
             throw new UncheckedIOException("Cannot read " + directory, e);
         }
         int imported = 0;
-        int skipped = 0;
+        int present = 0;
+        int rejected = 0;
         List<String> messages = new ArrayList<>();
         for (Path file : files) {
-            DemoSession session = read(file);
-            String result = transaction.execute(status -> importOne(session, employerEmail));
-            if (result == null) {
-                imported++;
-                messages.add(file.getFileName() + ": загружена «" + session.candidateLabel() + "»");
-            } else {
-                skipped++;
-                messages.add(file.getFileName() + ": пропущена — " + result);
+            DemoSession session;
+            String problem;
+            try {
+                session = read(file);
+                problem = problemOf(session);
+            } catch (RuntimeException e) {
+                session = null;
+                problem = rootMessage(e);
+            }
+            if (problem != null) {
+                rejected++;
+                messages.add(file.getFileName() + ": не загружена — " + problem);
+                continue;
+            }
+            DemoSession valid = session;
+            Outcome outcome = transaction.execute(status -> importOne(valid, employerEmail));
+            switch (outcome.kind()) {
+                case IMPORTED -> {
+                    imported++;
+                    messages.add(file.getFileName() + ": загружена «" + valid.candidateLabel() + "»");
+                }
+                case PRESENT -> {
+                    present++;
+                    messages.add(file.getFileName() + ": пропущена — такая демо-сессия уже есть");
+                }
+                case REJECTED -> {
+                    rejected++;
+                    messages.add(file.getFileName() + ": не загружена — " + outcome.reason());
+                }
             }
         }
-        return new Summary(imported, skipped, List.copyOf(messages));
+        return new Summary(files.size(), imported, present, rejected, List.copyOf(messages));
     }
 
     DemoSession read(Path file) {
@@ -123,8 +156,57 @@ public final class DemoSessionImporter {
         }
     }
 
-    /** Null when imported, otherwise why the session was skipped. */
-    private String importOne(DemoSession demo, String employerEmail) {
+    private enum Kind { IMPORTED, PRESENT, REJECTED }
+
+    private record Outcome(Kind kind, String reason) {
+    }
+
+    /**
+     * What makes a file unusable before anything is written: the fields the database needs, and runs that are not
+     * finished (the runner would run them again after the seed, and the score would be counted without them).
+     */
+    static String problemOf(DemoSession demo) {
+        if (demo.candidateLabel() == null || demo.candidateLabel().isBlank()
+                || demo.candidateLabel().length() > MAX_LABEL) {
+            return "нет метки или она длиннее " + MAX_LABEL + " символов";
+        }
+        if (demo.targetLevel() == null || demo.status() == null || demo.startedAt() == null
+                || demo.timeLimitMin() <= 0) {
+            return "нет уровня, статуса, начала или длительности сессии";
+        }
+        if (demo.status() == ru.gits.core.session.SessionStatus.IN_PROGRESS) {
+            return "сессия не завершена";
+        }
+        if (demo.tasks() == null || demo.tasks().isEmpty()) {
+            return "нет заданий";
+        }
+        for (DemoSession.Task task : demo.tasks()) {
+            if (task.variantCode() == null || task.kind() == null || task.status() == null) {
+                return "у задания " + task.orderNo() + " нет варианта, вида или статуса";
+            }
+            for (DemoSession.Run run : task.runs() == null ? List.<DemoSession.Run>of() : task.runs()) {
+                if (run.mode() == null || run.status() == null || !run.status().isFinal() || run.createdAt() == null) {
+                    return "у задания " + task.orderNo() + " есть незавершённый или неполный запуск";
+                }
+            }
+            for (DemoSession.Batch batch : task.telemetry() == null ? List.<DemoSession.Batch>of() : task.telemetry()) {
+                if (batch.events() == null || !batch.events().isArray() || batch.receivedAt() == null) {
+                    return "у задания " + task.orderNo() + " пакет телеметрии " + batch.seq() + " без событий";
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String rootMessage(Throwable e) {
+        Throwable root = e;
+        while (root.getCause() != null) {
+            root = root.getCause();
+        }
+        return root.getMessage() == null ? root.getClass().getSimpleName() : root.getMessage();
+    }
+
+    private Outcome importOne(DemoSession demo, String employerEmail) {
         AppUser employer = repositories.users().findByEmail(employerEmail)
                 .orElseThrow(() -> new IllegalStateException("Работодатель " + employerEmail + " не найден: "
                         + "запустите api с DEMO_EMPLOYER_EMAIL и DEMO_EMPLOYER_PASSWORD"));
@@ -134,13 +216,13 @@ public final class DemoSessionImporter {
         boolean present = repositories.invites().findByCompanyIdOrderByCreatedAtDesc(employer.getCompany().getId())
                 .stream().anyMatch(invite -> invite.getCandidateLabel().equals(demo.candidateLabel()));
         if (present) {
-            return "такая демо-сессия уже есть";
+            return new Outcome(Kind.PRESENT, null);
         }
         List<TaskVariant> variants = new ArrayList<>();
         for (DemoSession.Task task : demo.tasks()) {
             var variant = repositories.variants().findByCode(task.variantCode());
             if (variant.isEmpty()) {
-                return "в банке задач нет варианта " + task.variantCode();
+                return new Outcome(Kind.REJECTED, "в банке задач нет варианта " + task.variantCode());
             }
             variants.add(variant.get());
         }
@@ -181,16 +263,14 @@ public final class DemoSessionImporter {
                 task.submit(move(recorded.submittedAt() != null ? recorded.submittedAt() : end, shift));
             }
             repositories.tasks().save(task);
-            for (DemoSession.Run run : recorded.runs()) {
+            for (DemoSession.Run run : recorded.runs() == null ? List.<DemoSession.Run>of() : recorded.runs()) {
                 RunJob job = new RunJob(task, run.mode(), run.payload() == null ? "{}" : write(run.payload()),
                         move(run.createdAt(), shift));
                 if (run.startedAt() != null) {
                     job.markRunning("demo-seed", move(run.startedAt(), shift));
                 }
-                if (run.status().isFinal()) {
-                    job.finish(run.status(), move(run.finishedAt() != null ? run.finishedAt() : run.createdAt(),
-                            shift));
-                }
+                // only finished runs come here (problemOf): the runner never picks a seeded job up
+                job.finish(run.status(), move(run.finishedAt() != null ? run.finishedAt() : run.createdAt(), shift));
                 repositories.runs().save(job);
                 DemoSession.Result result = run.result();
                 if (result != null) {
@@ -201,13 +281,14 @@ public final class DemoSessionImporter {
                             move(result.createdAt(), shift)));
                 }
             }
-            for (DemoSession.Batch batch : recorded.telemetry()) {
+            for (DemoSession.Batch batch : recorded.telemetry() == null ? List.<DemoSession.Batch>of()
+                    : recorded.telemetry()) {
                 repositories.batches().save(new TelemetryBatch(task, batch.seq(), batch.clientTsStart(),
                         batch.clientTsEnd(), write(batch.events()),
                         batch.flags() == null ? "{}" : write(batch.flags()), move(batch.receivedAt(), shift)));
             }
         }
-        return null;
+        return new Outcome(Kind.IMPORTED, null);
     }
 
     private static Instant move(Instant instant, Duration shift) {

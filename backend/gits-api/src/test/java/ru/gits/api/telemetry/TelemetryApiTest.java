@@ -56,6 +56,46 @@ class TelemetryApiTest extends CandidateSessionTest {
     }
 
     @Test
+    void reopenedTaskTellsWhereTheTelemetryContinues() throws Exception {
+        OpenTask task = openTask();
+        JsonNode fresh = read(task.candidate().get("/candidate/tasks/" + task.id()).andReturn().getResponse());
+        assertThat(fresh.get("telemetryNextSeq").asInt()).isZero();
+        assertThat(fresh.get("telemetryLastT").asDouble()).isZero();
+
+        send(task, batch(0, 0, 900.5, List.of(Map.of("t", 900.5, "type", "blur")))).andExpect(status().isOk());
+        send(task, batch(1, 1000, 1850.25, List.of(Map.of("t", 1850.25, "type", "focus")))).andExpect(status().isOk());
+
+        // e.g. after a page reload
+        JsonNode reopened = read(task.candidate().get("/candidate/tasks/" + task.id()).andReturn().getResponse());
+        assertThat(reopened.get("telemetryNextSeq").asInt()).isEqualTo(2);
+        assertThat(reopened.get("telemetryLastT").asDouble()).isEqualTo(1850.25);
+    }
+
+    @Test
+    void anotherBatchWithATakenSeqIsKeptUnderTheNextSeq() throws Exception {
+        OpenTask task = openTask();
+        String first = batch(0, 0, 10, List.of(Map.of("t", 5, "type", "blur")));
+        // e.g. a beacon of the page before a reload and the first batch of the reloaded page
+        String other = batch(0, 0, 10, List.of(Map.of("t", 7, "type", "focus")));
+        send(task, first).andExpect(status().isOk()).andExpect(jsonPath("$.seq").value(0));
+
+        send(task, other).andExpect(status().isOk())
+                .andExpect(jsonPath("$.seq").value(1))
+                .andExpect(jsonPath("$.duplicate").value(false));
+        // a retry of either batch is recognized, wherever it is stored
+        send(task, other).andExpect(status().isOk())
+                .andExpect(jsonPath("$.seq").value(1))
+                .andExpect(jsonPath("$.duplicate").value(true));
+        send(task, first).andExpect(status().isOk())
+                .andExpect(jsonPath("$.seq").value(0))
+                .andExpect(jsonPath("$.duplicate").value(true));
+
+        List<TelemetryBatch> stored = batches.findBySessionTaskIdOrderBySeq(task.id());
+        assertThat(stored).extracting(TelemetryBatch::getSeq).containsExactly(0, 1);
+        assertThat(stored.get(1).getEvents()).contains("focus");
+    }
+
+    @Test
     void batchLimits() throws Exception {
         OpenTask task = openTask();
         List<Map<String, Object>> tooMany = new ArrayList<>();

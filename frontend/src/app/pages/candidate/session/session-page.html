@@ -110,6 +110,7 @@
       (changed)="onChanged($event)"
       (saveRequested)="saveNow()"
       (runRequested)="runTests()"
+      (ready)="telemetry.attachEditor($event.editor)"
     />
     <section class="ws__results" aria-label="Результаты">
       <app-results-panel [run]="run()" />
@@ -125,6 +126,10 @@
       <button #overlayButton type="button" class="btn btn--primary" (click)="leave()">Завершить</button>
     </div>
   </div>
+}
+
+@if (debug) {
+  <app-telemetry-debug [state]="telemetry.debug()" />
 }
 
 <app-confirm-dialog

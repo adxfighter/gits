@@ -65,6 +65,9 @@ export interface TaskView {
   runsLimit: number;
   /** One-time token for a sendBeacon telemetry batch (docs/telemetry.md). */
   beaconToken: string | null;
+  /** Where the task's telemetry continues after a reload: next seq and the end of the time scale. */
+  telemetryNextSeq: number;
+  telemetryLastT: number;
 }
 
 export interface RunAccepted {

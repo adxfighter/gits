@@ -114,7 +114,8 @@ export class CodeEditor {
         // the calibration block measures plain typing: no suggestions and no automatic closing pairs
         quickSuggestions: !calibration,
         suggestOnTriggerCharacters: !calibration,
-        wordBasedSuggestions: calibration ? 'off' : 'currentDocument',
+        // only the Java provider's items: each reports its acceptance to the telemetry (completion events)
+        wordBasedSuggestions: 'off',
         snippetSuggestions: calibration ? 'none' : 'inline',
         acceptSuggestionOnEnter: calibration ? 'off' : 'on',
         autoClosingBrackets: calibration ? 'never' : 'languageDefined',

@@ -25,11 +25,13 @@ import {
 } from '../../../core/candidate/candidate.models';
 import { messageOf, statusOf } from '../../../core/http/http-errors';
 import { MarkdownPipe } from '../../../core/markdown/markdown.pipe';
+import { TelemetryCollector } from '../../../core/telemetry/telemetry-collector.service';
 import { CodeEditor } from './code-editor';
 import { CodeSaver } from './code-saver';
 import { ConfirmDialog } from './confirm-dialog';
 import { ResultsPanel } from './results-panel';
 import { SessionTimer } from './session-timer';
+import { TelemetryDebugPanel } from './telemetry-debug';
 
 /** Autosave checks every second; each task is sent at most once per server interval (5 s). */
 const AUTOSAVE_TICK_MS = 1000;
@@ -37,6 +39,8 @@ const SESSION_SYNC_MS = 30000;
 const POLL_MS = 1000;
 /** Before the deadline all dirty tasks are flushed, so the automatic submit gets the latest code. */
 const FINAL_FLUSH_SECONDS = 12;
+/** Telemetry is uploaded before a submit and the end of the session, but never holds them up for longer. */
+const TELEMETRY_FLUSH_TIMEOUT_MS = 3000;
 
 interface Confirmation {
   title: string;
@@ -52,7 +56,9 @@ interface Confirmation {
  */
 @Component({
   selector: 'app-session-page',
-  imports: [CodeEditor, ConfirmDialog, MarkdownPipe, ResultsPanel, SessionTimer],
+  imports: [CodeEditor, ConfirmDialog, MarkdownPipe, ResultsPanel, SessionTimer, TelemetryDebugPanel],
+  // telemetry exists only on this page, which opens after the consent (see consentGuard)
+  providers: [TelemetryCollector],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './session-page.html',
 })
@@ -60,6 +66,8 @@ export class SessionPage implements OnInit {
   private readonly api = inject(CandidateApi);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  protected readonly telemetry = inject(TelemetryCollector);
+  protected readonly debug = new URLSearchParams(location.search).get('debug') === '1';
   private readonly editor = viewChild(CodeEditor);
   private readonly overlayButton = viewChild<ElementRef<HTMLButtonElement>>('overlayButton');
 
@@ -178,6 +186,7 @@ export class SessionPage implements OnInit {
     if (ticket !== this.opening) {
       return;
     }
+    this.telemetry.startTask(task);
     this.currentTaskId.set(id);
     const editable = task.files.find((f) => f.kind === 'STARTER' && f.editable);
     this.activePath.set((editable ?? task.files[0])?.path ?? null);
@@ -205,6 +214,8 @@ export class SessionPage implements OnInit {
     if (!this.finalFlushDone && this.remainingSeconds() <= FINAL_FLUSH_SECONDS && !this.timeOver()) {
       this.finalFlushDone = true;
       this.saver.flushAll().catch((error: unknown) => void this.onSaveError(error));
+      // events after the deadline are not accepted: send what is buffered while the tasks are still open
+      void this.telemetry.flushAll(true);
     }
   }
 
@@ -265,6 +276,11 @@ export class SessionPage implements OnInit {
     const version = this.saver.version(task.id);
     this.running.set(true);
     this.notice.set(null);
+    this.telemetry.action(mode === 'RUN' ? 'run' : 'submit');
+    if (mode === 'SUBMIT') {
+      // the task's events must reach the server before it closes the task
+      await this.flushTelemetry();
+    }
     try {
       const files = this.editor()!.contents(task);
       const accepted = await firstValueFrom(
@@ -326,6 +342,7 @@ export class SessionPage implements OnInit {
   // --- session -----------------------------------------------------------------------------------------------------
 
   private async finish(): Promise<void> {
+    await this.flushTelemetry();
     try {
       // every task's latest code must reach the server before it submits the open ones
       await this.saver.flushAll();
@@ -345,6 +362,13 @@ export class SessionPage implements OnInit {
       }
       this.notice.set(messageOf(error));
     }
+  }
+
+  private async flushTelemetry(): Promise<void> {
+    await Promise.race([
+      this.telemetry.flushAll(true),
+      new Promise<void>((resolve) => setTimeout(resolve, TELEMETRY_FLUSH_TIMEOUT_MS)),
+    ]);
   }
 
   protected onTimeOver(): void {

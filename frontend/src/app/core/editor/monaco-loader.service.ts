@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import type * as Monaco from 'monaco-editor';
 
-import { registerJavaCompletions } from './java-completions';
+import { COMPLETION_ACCEPTED_COMMAND, registerJavaCompletions } from './java-completions';
 
 export type MonacoApi = typeof Monaco;
 
@@ -24,6 +24,7 @@ declare global {
 export class MonacoLoader {
   private loading?: Promise<MonacoApi>;
   private readonly noSuggestionModels = new Set<string>();
+  private readonly completionListeners = new Set<() => void>();
 
   load(): Promise<MonacoApi> {
     this.loading ??= new Promise<MonacoApi>((resolve, reject) => {
@@ -39,6 +40,9 @@ export class MonacoLoader {
           () => {
             const monaco = window.monaco!;
             registerJavaCompletions(monaco, (model) => this.noSuggestionModels.has(model.uri.toString()));
+            monaco.editor.registerCommand(COMPLETION_ACCEPTED_COMMAND, () =>
+              this.completionListeners.forEach((listener) => listener()),
+            );
             resolve(monaco);
           },
           reject,
@@ -55,6 +59,12 @@ export class MonacoLoader {
       throw error;
     });
     return this.loading;
+  }
+
+  /** Called whenever a completion suggestion is accepted; returns the unsubscribe function. */
+  onCompletionAccepted(listener: () => void): () => void {
+    this.completionListeners.add(listener);
+    return () => this.completionListeners.delete(listener);
   }
 
   /** Models of the calibration block get no completion suggestions. */

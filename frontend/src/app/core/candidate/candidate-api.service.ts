@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map, switchMap } from 'rxjs';
 
 import { retryTransient } from '../http/http-errors';
+import { TelemetryAccepted, TelemetryBatch } from '../telemetry/telemetry.models';
 import {
   CandidateView,
   ConsentView,
@@ -85,6 +86,16 @@ export class CandidateApi {
 
   runResult(runId: string): Observable<RunView> {
     return this.http.get<RunView>(`${API}/candidate/runs/${runId}`).pipe(retryTransient());
+  }
+
+  /** A telemetry batch; repeats are handled by the telemetry stream (the server is idempotent by seq). */
+  telemetry(taskId: string, batch: TelemetryBatch): Observable<TelemetryAccepted> {
+    return this.withCsrf(this.http.post<TelemetryAccepted>(`${API}/candidate/tasks/${taskId}/telemetry`, batch));
+  }
+
+  /** The URL a sendBeacon batch of the task goes to (docs/telemetry.md). */
+  telemetryUrl(taskId: string): string {
+    return `${API}/candidate/tasks/${taskId}/telemetry`;
   }
 
   /** The XSRF cookie may be missing after a reload of a deep link: fetch it first when it is. */

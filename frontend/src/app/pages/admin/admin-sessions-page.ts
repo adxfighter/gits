@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { catchError, map, of, switchMap } from 'rxjs';
 
 import { AdminApi } from '../../core/admin/admin-api.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { AdminSessionRow } from '../../core/admin/admin.models';
 import { LEVEL_LABELS, formatDateTime, formatScore } from '../../core/employer/employer-labels';
 import { SessionStatus } from '../../core/employer/employer.models';
@@ -33,7 +35,7 @@ const STATUS_LABELS: Record<SessionStatus, string> = {
         <h2 class="export__title">Выгрузка для исследования</h2>
         <p class="muted small">
           Архив ZIP: сессии, задания, запуски, телеметрия и индикаторы в JSONL, описание полей — README внутри.
-          Вместо кандидатов, сессий и компаний — случайные идентификаторы этого архива; меток кандидатов, email, IP и
+          Вместо сессий, заданий и компаний — случайные идентификаторы этого архива; меток кандидатов, email, IP и
           user agent в нём нет. Период — дни начала сессий по UTC, включительно; пустое поле — без ограничения.
         </p>
         <div class="export__form">
@@ -48,11 +50,18 @@ const STATUS_LABELS: Record<SessionStatus, string> = {
           @if (periodError()) {
             <p class="error" role="alert" data-testid="export-error">{{ periodError() }}</p>
           } @else {
-            <a class="btn btn--primary" [href]="exportUrl()" download data-testid="export-download">Скачать архив</a>
+            <button class="btn btn--primary" type="button" [disabled]="checking()" (click)="download()" data-testid="export-download">
+              Скачать архив
+            </button>
           }
         </div>
       </article>
 
+      <!-- one live region for the results of recalculation: screen readers announce its changes -->
+      <p class="visually-hidden" role="status" data-testid="rescore-status">{{ lastMessage() }}</p>
+      @if (staleError(); as text) {
+        <p class="error" role="alert" data-testid="sessions-stale">{{ text }} Показан последний загруженный список.</p>
+      }
       @if (rows(); as list) {
         @if (list.length === 0) {
           <div class="state" data-testid="sessions-empty"><p>Сессий пока нет.</p></div>
@@ -97,7 +106,7 @@ const STATUS_LABELS: Record<SessionStatus, string> = {
                   </tr>
                   @if (messages()[row.sessionId]; as message) {
                     <tr class="message-row">
-                      <td colspan="8" role="status" [class.error]="message.error" data-testid="rescore-message">
+                      <td colspan="8" [class.error]="message.error" data-testid="rescore-message">
                         {{ message.text }}
                       </td>
                     </tr>
@@ -127,12 +136,18 @@ const STATUS_LABELS: Record<SessionStatus, string> = {
 })
 export class AdminSessionsPage {
   private readonly api = inject(AdminApi);
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly attempt = signal(0);
 
   protected readonly levelLabels = LEVEL_LABELS;
   protected readonly statusLabels = STATUS_LABELS;
   protected readonly rows = signal<AdminSessionRow[] | null>(null);
   protected readonly error = signal<string | null>(null);
+  /** A reload that failed while a list is on the screen. */
+  protected readonly staleError = signal<string | null>(null);
+  protected readonly lastMessage = signal('');
+  protected readonly checking = signal(false);
   protected readonly busy = signal<string | null>(null);
   protected readonly messages = signal<Record<string, { text: string; error: boolean }>>({});
   protected readonly from = signal('');
@@ -157,8 +172,11 @@ export class AdminSessionsPage {
       .subscribe(({ rows, error }) => {
         if (rows) {
           this.rows.set(rows);
+          this.staleError.set(null);
         } else if (this.rows() === null) {
           this.error.set(messageOf(error, 'Не удалось загрузить сессии.'));
+        } else {
+          this.staleError.set(messageOf(error, 'Не удалось обновить список сессий.'));
         }
       });
   }
@@ -188,6 +206,29 @@ export class AdminSessionsPage {
     });
   }
 
+  /**
+   * The archive is downloaded by the browser itself (a file, not read into the page). A plain link would save an
+   * error page as the file when the session has ended: the session is checked first.
+   */
+  protected download(): void {
+    const url = this.exportUrl();
+    this.checking.set(true);
+    this.auth.me().subscribe({
+      next: (user) => {
+        this.checking.set(false);
+        if (user?.role === 'ADMIN') {
+          startDownload(url);
+        } else {
+          void this.router.navigate(['/login'], { queryParams: { returnUrl: '/admin/sessions', reason: 'expired' } });
+        }
+      },
+      error: () => {
+        this.checking.set(false);
+        this.staleError.set('Нет связи с сервером: архив не скачан.');
+      },
+    });
+  }
+
   protected value(event: Event): string {
     return (event.target as HTMLInputElement).value;
   }
@@ -202,5 +243,16 @@ export class AdminSessionsPage {
 
   private message(sessionId: string, text: string, error: boolean): void {
     this.messages.update((all) => ({ ...all, [sessionId]: { text, error } }));
+    this.lastMessage.set(text);
   }
+}
+
+/** Opens the export address: the answer is an attachment, so the page stays where it is. */
+export function startDownload(url: string): void {
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = '';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }

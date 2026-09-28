@@ -6,7 +6,7 @@ import { Observable, firstValueFrom } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AuthService, CurrentUser } from './auth.service';
-import { adminGuard, employerGuard } from './employer.guard';
+import { adminGuard, employerGuard } from './role.guard';
 
 describe('employerGuard', () => {
   let http: HttpTestingController;

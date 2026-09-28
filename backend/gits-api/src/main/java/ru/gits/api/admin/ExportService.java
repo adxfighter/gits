@@ -21,6 +21,8 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import jakarta.persistence.EntityManager;
 
 import ru.gits.core.audit.AuditLog;
 import ru.gits.core.audit.AuditLogRepository;
@@ -69,6 +73,12 @@ public class ExportService {
 
         /** Days in UTC, both included; an open end means «from the beginning» or «until now». */
         public static Period of(LocalDate from, LocalDate to) {
+            for (LocalDate day : new LocalDate[] {from, to}) {
+                if (day != null && (day.getYear() < MIN_YEAR || day.getYear() > MAX_YEAR)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "Дата периода должна быть между " + MIN_YEAR + " и " + MAX_YEAR + " годом");
+                }
+            }
             if (from != null && to != null && from.isAfter(to)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Начало периода позже его конца");
             }
@@ -79,6 +89,10 @@ public class ExportService {
         }
     }
 
+    static final int MIN_YEAR = 2000;
+    static final int MAX_YEAR = 9998;
+
+    private static final Logger LOG = LoggerFactory.getLogger(ExportService.class);
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final AssessmentSessionRepository sessions;
@@ -90,13 +104,15 @@ public class ExportService {
     private final SessionIndicatorsRepository indicators;
     private final SessionScoreRepository scores;
     private final AuditLogRepository audit;
+    private final EntityManager entities;
     private final ObjectMapper json;
     private final Clock clock;
 
     public ExportService(AssessmentSessionRepository sessions, SessionTaskRepository sessionTasks,
                          ConsentRepository consents, RunJobRepository runs, RunResultRepository results,
                          TelemetryBatchRepository batches, SessionIndicatorsRepository indicators,
-                         SessionScoreRepository scores, AuditLogRepository audit, ObjectMapper json, Clock clock) {
+                         SessionScoreRepository scores, AuditLogRepository audit, EntityManager entities,
+                         ObjectMapper json, Clock clock) {
         this.sessions = sessions;
         this.sessionTasks = sessionTasks;
         this.consents = consents;
@@ -106,6 +122,7 @@ public class ExportService {
         this.indicators = indicators;
         this.scores = scores;
         this.audit = audit;
+        this.entities = entities;
         this.json = json;
         this.clock = clock;
     }
@@ -120,7 +137,12 @@ public class ExportService {
                 clock.instant()));
     }
 
-    /** Writes the archive; one read-only transaction for a consistent picture of the period. */
+    /**
+     * Writes the archive; one read-only transaction for a consistent picture of the period. Runs and telemetry are
+     * read one task at a time and let go once written, so memory does not grow with the period. If writing fails
+     * half-way, the ZIP is left unfinished (no central directory): a broken download, never a readable archive that
+     * silently lacks data.
+     */
     @Transactional(readOnly = true)
     public void write(Period period, OutputStream out) {
         List<AssessmentSession> selected = sessions.findByStartedAtGreaterThanEqualAndStartedAtLessThanOrderByStartedAt(
@@ -145,7 +167,8 @@ public class ExportService {
                 .collect(Collectors.toMap(row -> row.getSessionTask().getId(), Function.identity()));
         Counts counts = new Counts();
 
-        try (ZipOutputStream zip = new ZipOutputStream(out, StandardCharsets.UTF_8)) {
+        ZipOutputStream zip = new ZipOutputStream(out, StandardCharsets.UTF_8);
+        try {
             entry(zip, "README.md");
             zip.write(readme());
             zip.closeEntry();
@@ -213,6 +236,10 @@ public class ExportService {
                     line.put("durationMs", result == null ? null : result.getDurationMs());
                     line(zip, line);
                     counts.runs++;
+                    if (result != null) {
+                        entities.detach(result);
+                    }
+                    entities.detach(job);
                 }
             }
             zip.closeEntry();
@@ -230,6 +257,7 @@ public class ExportService {
                     line.put("events", read(batch.getEvents()));
                     line(zip, line);
                     counts.telemetryBatches++;
+                    entities.detach(batch);
                 }
             }
             zip.closeEntry();
@@ -261,8 +289,14 @@ public class ExportService {
             entry(zip, "manifest.json");
             zip.write(json.writerWithDefaultPrettyPrinter().writeValueAsBytes(manifest));
             zip.closeEntry();
+            zip.finish();
+            zip.flush();
         } catch (IOException e) {
+            LOG.warn("Research export {}..{} was not written: {}", period.fromDate(), period.toDate(), e.toString());
             throw new UncheckedIOException("Cannot write the export", e);
+        } catch (RuntimeException e) {
+            LOG.error("Research export {}..{} failed half-way", period.fromDate(), period.toDate(), e);
+            throw e;
         }
     }
 

@@ -2,10 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, signal } f
 import { Router } from '@angular/router';
 
 import { AuthService, UserRole } from '../../core/auth/auth.service';
-import { HOME_OF } from '../../core/auth/employer.guard';
+import { HOME_OF } from '../../core/auth/role.guard';
 import { messageOf, statusOf } from '../../core/http/http-errors';
 
-/** Sign-in of an employer: email and password (docs/api.md, POST /auth/login). */
+/** Sign-in of an employer or the administrator: email and password (docs/api.md, POST /auth/login). */
 @Component({
   selector: 'app-login-page',
   changeDetection: ChangeDetectionStrategy.OnPush,

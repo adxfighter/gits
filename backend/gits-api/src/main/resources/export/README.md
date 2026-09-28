@@ -1,6 +1,6 @@
 # Выгрузка GITS для исследования
 
-Архив содержит данные сессий оценки, начатых в указанном периоде (`manifest.json`: `from`, `to` — дни по UTC включительно; пустое значение — без ограничения). Формат — `gits-research-export/1`.
+Архив содержит данные сессий оценки, начатых в указанном периоде (`manifest.json`: `from`, `to` — дни по UTC включительно; `null` — без ограничения). Формат — `gits-research-export/1`.
 
 ## Псевдонимизация
 - Каждой сессии, заданию и компании присвоен **случайный идентификатор этого архива** (`s-…`, `t-…`, `c-…`). Он не выводится из данных платформы: связать архив с базой данных или с другой выгрузкой по нему нельзя.
@@ -45,7 +45,7 @@
 | `createdAt`, `startedAt`, `finishedAt` | создание, начало и конец выполнения |
 | `code` | код, который запускался: `{путь: содержимое}` |
 | `compiled`, `testsTotal`, `testsPassed` | результат; `null`, если его нет |
-| `testCases` | тесты: `name`, `status` (`PASSED`, `FAILED`, `ERROR`, `SKIPPED`), `hidden` (скрытый тест), `message` |
+| `testCases` | тесты: `name`, `status` (`PASSED`, `FAILED`, `ERROR`, `SKIPPED`), `hidden` (скрытый тест), `message`; у скрытых тестов имя — «Скрытый тест N», `message` пуст |
 | `durationMs` | время выполнения в песочнице |
 
 ### telemetry.jsonl — телеметрия ввода
@@ -55,16 +55,18 @@
 |---|---|
 | `task` | псевдоним задания |
 | `seq` | номер пакета задания, с 0 |
-| `clientTsStart`, `clientTsEnd` | интервал пакета, мс от открытия задания |
+| `clientTsStart`, `clientTsEnd` | интервал пакета на шкале задания, мс |
 | `receivedAt` | приём сервером |
 | `flags` | нарушения монотонности времени (`tNotMonotonic`, `outsideBatchRange`, `overlapsPreviousBatch`, `overlapsNextBatch`) |
-| `events` | события: `t` (мс от открытия задания) и `type` с полями своего типа |
+| `events` | события: `t` (мс на шкале задания) и `type` с полями своего типа |
+
+Шкала задания начинается при первом открытии задания; после перезагрузки страницы она продолжается с конца последнего пакета, а время, пока страница была закрыта, в неё не входит. Поэтому `t` нельзя переводить во время суток прибавлением к `startedAt`.
 
 Типы событий:
 | type | Поля | Смысл |
 |---|---|---|
 | `kd`, `ku` | `keyClass`, `repeat` | нажатие и отпускание клавиши; только класс (`letter`, `digit`, `space`, `enter`, `backspace`, `delete`, `tab`, `arrow`, `punct`, `bracket`, `modifier`, `other`), без символа |
-| `edit` | `file`, `rangeOffset`, `rangeLength`, `text`, `textLength`, `source`, `isUndo`, `isRedo`, `ownCode` | изменение текста: диапазон `[rangeOffset, rangeOffset + rangeLength)` заменён на `text`; `source` — `typing`, `paste`, `completion`, `other` (отмена, повтор, вырезание) |
+| `edit` | `file`, `rangeOffset`, `rangeLength`, `text`, `textLength`, `source`, `isUndo`, `isRedo`, при `source: paste` — `ownCode` | изменение текста: диапазон `[rangeOffset, rangeOffset + rangeLength)` заменён на `text`; `source` — `typing`, `paste`, `completion`, `other` (отмена, повтор, вырезание) |
 | `cursor` | `file`, `offset` | позиция курсора |
 | `select` | `file`, `offset`, `length` | выделение |
 | `paste`, `copy` | `file`, `length`, у `paste` — `ownCode` | вставка и копирование, только длина; `ownCode: true` — вставленный текст был в коде задачи, её условии или скопирован в редакторе |
@@ -85,4 +87,4 @@
 | `indicators` | `{имя: {value, explanation}}`: `pasteRatio`, `largestPaste`, `externalPastes`, `focusLoss`, `burstMax`, `idleThenBurst`, `linearity`, `editRatio`, `timeToFirstRun`, `runsCount`, `telemetryEvents`, `trustReasons`, у разминки — `retyping`. Определения — в `docs/indicators.md` репозитория GITS |
 
 ### manifest.json
-Формат, время выгрузки, период и число строк в каждом файле (`counts`).
+`format`, `exportedAt`, `from`/`to` (`null` — без ограничения), `timezone` и `counts` — число строк: `sessions`, `tasks`, `runs`, `telemetryBatches`, `indicators`. Пишется последним: если архив не открывается или в нём нет `manifest.json`, выгрузка прервалась — повторите её.

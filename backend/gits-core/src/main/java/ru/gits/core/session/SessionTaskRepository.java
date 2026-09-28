@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -32,7 +33,8 @@ public interface SessionTaskRepository extends JpaRepository<SessionTask, UUID> 
     /** A task of a session of the employer's own company. */
     Optional<SessionTask> findByIdAndSessionInviteCompanyId(UUID id, UUID companyId);
 
-    /** Tasks of several sessions (the research export). */
+    /** Tasks of several sessions (the research export), with their variant and template. */
+    @EntityGraph(attributePaths = {"variant", "variant.template"})
     List<SessionTask> findBySessionIdInOrderBySessionIdAscOrderNoAsc(Collection<UUID> sessionIds);
 
     /** How many times each variant was given to candidates (the admin's task bank). */

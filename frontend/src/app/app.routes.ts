@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 
-import { adminGuard, employerGuard } from './core/auth/employer.guard';
+import { adminGuard, employerGuard } from './core/auth/role.guard';
 import { candidateGuard, consentGuard } from './core/candidate/consent.guard';
 
 export const routes: Routes = [

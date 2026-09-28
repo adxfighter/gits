@@ -56,7 +56,7 @@ class AdminController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         ExportService.Period period = ExportService.Period.of(from, to);
-        export.recordExport(CurrentUser.employer().getUsername(), period);
+        export.recordExport(CurrentUser.user().getUsername(), period);
         String name = "gits-export" + (from == null ? "" : "-" + from) + (to == null ? "" : "-" + to) + ".zip";
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/zip"))

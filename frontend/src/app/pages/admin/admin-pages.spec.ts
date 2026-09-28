@@ -1,8 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { Router, provideRouter } from '@angular/router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AdminSessionRow, TemplateRow, VariantDetails } from '../../core/admin/admin.models';
 import { MonacoLoader } from '../../core/editor/monaco-loader.service';
@@ -131,7 +131,16 @@ describe('admin pages', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect(text(root.querySelector('[data-testid="rescore-message"]'))).toBe('Пересчитано: балл 55,5.');
+    expect(text(root.querySelector('[data-testid="rescore-status"]'))).toBe('Пересчитано: балл 55,5.');
     expect(text(root.querySelector('[data-testid="session-score"]'))).toBe('55,5');
+  });
+
+  it('sends an admin whose session ended to the login page instead of downloading an error', async () => {
+    const { root } = await sessionsPage([]);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    root.querySelector<HTMLButtonElement>('[data-testid="export-download"]')!.click();
+    http.expectOne('/api/auth/me').flush({}, { status: 401, statusText: 'Unauthorized' });
+    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/admin/sessions', reason: 'expired' } });
   });
 
   it('explains why a session cannot be recalculated yet', async () => {
@@ -142,10 +151,13 @@ describe('admin pages', () => {
     expect(text(root.querySelector('[data-testid="rescore-message"]'))).toContain('не все решения проверены');
   });
 
-  it('builds the export link for the chosen period and rejects a reversed one', async () => {
+  it('downloads the export for the chosen period after checking the session, and rejects a reversed period', async () => {
     const { fixture, root } = await sessionsPage([]);
-    const link = () => root.querySelector<HTMLAnchorElement>('[data-testid="export-download"]');
-    expect(link()?.getAttribute('href')).toBe('/api/admin/export');
+    const link = () => root.querySelector<HTMLButtonElement>('[data-testid="export-download"]');
+    const clicked: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      clicked.push(this.getAttribute('href') ?? '');
+    });
     const set = (id: string, value: string) => {
       const input = root.querySelector<HTMLInputElement>(`[data-testid="${id}"]`)!;
       input.value = value;
@@ -154,7 +166,10 @@ describe('admin pages', () => {
     };
     set('export-from', '2026-09-01');
     set('export-to', '2026-09-30');
-    expect(link()?.getAttribute('href')).toBe('/api/admin/export?from=2026-09-01&to=2026-09-30');
+    link()!.click();
+    http.expectOne('/api/auth/me').flush({ userId: 'u', email: 'a', role: 'ADMIN', companyId: null, companyName: null });
+    expect(clicked).toEqual(['/api/admin/export?from=2026-09-01&to=2026-09-30']);
+    click.mockRestore();
     set('export-from', '2026-10-01');
     expect(link()).toBeNull();
     expect(text(root.querySelector('[data-testid="export-error"]'))).toBe('Начало периода позже его конца.');

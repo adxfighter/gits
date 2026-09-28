@@ -43,6 +43,7 @@ import ru.gits.core.invite.ConsentRepository;
 class AdminApiTest extends CandidateSessionTest {
 
     private static final String USER_AGENT = "GitsTestBrowser/7.3 (secret-device)";
+    private static final String IP = "203.0.113.77";
 
     @Autowired ConsentRepository consents;
     @Autowired AuditLogRepository audit;
@@ -141,12 +142,12 @@ class AdminApiTest extends CandidateSessionTest {
         // nothing that names the candidate, the employer, the company or the device, and no database identifiers
         String everything = String.join("\n", archive.values());
         Consent consent = consent(finished.inviteId());
+        // the consent did store the address (hashed) and the browser: they are there to be left out
+        assertThat(consent.getIpHash()).isNotBlank();
+        assertThat(consent.getUserAgent()).isEqualTo(USER_AGENT);
         List<String> forbidden = new ArrayList<>(List.of("Иван Петров", finished.employer().email(),
-                adminAccount.email(), finished.companyName(), USER_AGENT, "secret-device",
-                finished.sessionId().toString(), finished.inviteId().toString()));
-        if (consent.getIpHash() != null) {
-            forbidden.add(consent.getIpHash());
-        }
+                adminAccount.email(), finished.companyName(), USER_AGENT, "secret-device", IP,
+                consent.getIpHash(), finished.sessionId().toString(), finished.inviteId().toString()));
         finished.taskIds().forEach(id -> forbidden.add(id.toString()));
         assertThat(forbidden).allSatisfy(value -> assertThat(everything).doesNotContain(value));
         assertThat(everything).doesNotContainIgnoringCase("candidateLabel").doesNotContain("@test.local")
@@ -173,6 +174,8 @@ class AdminApiTest extends CandidateSessionTest {
         assertThat(lines(export(admin, "?from=2031-05-13&to=2031-05-13").get("sessions.jsonl"))).hasSize(1);
         mvc.perform(get("/admin/export?from=2031-05-14&to=2031-05-13").session(admin))
                 .andExpect(status().isBadRequest());
+        mvc.perform(get("/admin/export?to=+999999999-12-31").session(admin)).andExpect(status().isBadRequest());
+        mvc.perform(get("/admin/export?from=1970-01-01").session(admin)).andExpect(status().isBadRequest());
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -236,14 +239,21 @@ class AdminApiTest extends CandidateSessionTest {
     /** The candidate enters from a browser with a recognisable user agent: it must not reach the export. */
     private Cookie enterWithUserAgent(MockHttpSession employer) throws Exception {
         String token = createInviteToken(employer);
-        Cookie cookie = candidateCookie(mvc.perform(post("/candidate/enter").with(csrf()).with(client())
+        Cookie cookie = candidateCookie(mvc.perform(post("/candidate/enter").with(csrf()).with(knownAddress())
                         .header("User-Agent", USER_AGENT)
                         .contentType(MediaType.APPLICATION_JSON).content(body("token", token)))
                 .andReturn().getResponse());
         MockHttpServletResponse consent = mvc.perform(post("/candidate/consent").cookie(cookie).with(csrf())
-                        .with(client()).header("User-Agent", USER_AGENT))
+                        .with(knownAddress()).header("User-Agent", USER_AGENT))
                 .andExpect(status().isNoContent()).andReturn().getResponse();
         return candidateCookie(consent);
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor knownAddress() {
+        return request -> {
+            request.setRemoteAddr(IP);
+            return request;
+        };
     }
 
     private Consent consent(UUID inviteId) {

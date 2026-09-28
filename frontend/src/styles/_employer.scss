@@ -1,0 +1,164 @@
+// Employer pages (/login, /employer/...): page layout, form fields, tables, trust marks.
+// Designed for a laptop screen of 1280 px and wider; narrower windows scroll the table, not the page.
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+
+  h1 {
+    margin: 0;
+    font-size: 26px;
+  }
+}
+
+.page__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.page__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.state {
+  padding: 32px 24px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+
+  p {
+    margin: 0 0 8px;
+  }
+}
+
+.notice {
+  padding: 8px 12px;
+  color: var(--warn);
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+}
+
+a.btn {
+  display: inline-block;
+  text-decoration: none;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field__label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.field__hint {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.input {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 10px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+}
+
+.table-wrap {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+
+  th,
+  td {
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border);
+  }
+
+  thead th {
+    color: var(--text-muted);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child > * {
+    border-bottom: none;
+  }
+
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  a {
+    color: var(--accent);
+  }
+
+  a.btn {
+    color: var(--text);
+  }
+}
+
+.table__label {
+  font-weight: 600;
+}
+
+.table__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.trust {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.trust__mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.trust--green {
+  color: var(--ok);
+}
+
+.trust--yellow {
+  color: var(--warn);
+}
+
+.trust--red {
+  color: var(--danger);
+}

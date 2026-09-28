@@ -107,6 +107,8 @@ class EmployerApiTest extends CandidateSessionTest {
                 .findFirst().orElseThrow();
         assertThat(task.get("templateCode").asText()).startsWith("T0");
         assertThat(list(task.get("competencies"))).isNotEmpty();
+        // no task bank directory in tests: the codes stand in for the titles
+        assertThat(task.get("competencyTitles")).isEqualTo(task.get("competencies"));
         assertThat(task.get("level").asText()).isNotBlank();
         // hiddenCases(): two hidden tests, one passed
         assertThat(task.get("submitStatus").asText()).isEqualTo("DONE");

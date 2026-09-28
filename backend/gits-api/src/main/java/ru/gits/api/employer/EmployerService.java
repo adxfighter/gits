@@ -83,7 +83,7 @@ public class EmployerService {
     }
 
     public record TaskReport(UUID id, int orderNo, TaskKind kind, String templateCode, String templateTitle,
-                             List<String> competencies, Level level, String title, SessionTaskStatus status,
+                             List<String> competencies, List<String> competencyTitles, Level level, String title, SessionTaskStatus status,
                              RunStatus submitStatus, Boolean submitCompiled, Integer hiddenTestsPassed,
                              Integer hiddenTestsTotal, Instant startedAt,
                              Instant submittedAt, Long durationSeconds, long runs, TrustLevel trustLevel,
@@ -126,6 +126,7 @@ public class EmployerService {
     private final SessionScoreRepository scores;
     private final SessionIndicatorsRepository indicators;
     private final AuditLogRepository audit;
+    private final CompetencyCatalog competencyCatalog;
     private final ObjectMapper json;
     private final Clock clock;
 
@@ -133,7 +134,8 @@ public class EmployerService {
                            SessionTaskRepository sessionTasks, TaskFileRepository files, RunJobRepository runs,
                            RunResultRepository results, TelemetryBatchRepository batches,
                            SessionScoreRepository scores, SessionIndicatorsRepository indicators,
-                           AuditLogRepository audit, ObjectMapper json, Clock clock) {
+                           AuditLogRepository audit, CompetencyCatalog competencyCatalog, ObjectMapper json,
+                           Clock clock) {
         this.invites = invites;
         this.sessions = sessions;
         this.sessionTasks = sessionTasks;
@@ -144,6 +146,7 @@ public class EmployerService {
         this.scores = scores;
         this.indicators = indicators;
         this.audit = audit;
+        this.competencyCatalog = competencyCatalog;
         this.json = json;
         this.clock = clock;
     }
@@ -244,8 +247,9 @@ public class EmployerService {
                         files.findByVariantIdAndKindIn(variant.getId(), List.of(FileKind.STARTER))));
         Long duration = task.getStartedAt() == null || task.getSubmittedAt() == null ? null
                 : Duration.between(task.getStartedAt(), task.getSubmittedAt()).toSeconds();
+        List<String> competencies = competencies(template.getCompetencies());
         return new TaskReport(task.getId(), task.getOrderNo(), task.getKind(), template.getCode(),
-                template.getTitle(), competencies(template.getCompetencies()), variant.getLevel(),
+                template.getTitle(), competencies, competencyCatalog.titles(competencies), variant.getLevel(),
                 TaskCode.title(variant), task.getStatus(), submit.map(RunJob::getStatus).orElse(null),
                 result.map(RunResult::isCompiled).orElse(null), hiddenPassed, hiddenTotal, task.getStartedAt(),
                 task.getSubmittedAt(), duration, runs.countBySessionTaskIdAndMode(task.getId(), RunMode.RUN),

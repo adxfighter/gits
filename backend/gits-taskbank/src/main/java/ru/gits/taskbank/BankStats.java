@@ -16,13 +16,10 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 import ru.gits.sandbox.ExpectedTests;
 import ru.gits.taskbank.TaskBankLayout.VariantLocation;
 import ru.gits.taskbank.TaskSpecs.TemplateSpec;
 import ru.gits.taskbank.TaskSpecs.VariantSpec;
-import ru.gits.taskbank.check.SchemaCheck;
 
 /**
  * Summary of the task bank built only from its files: task.yaml, template.yaml, tests, validation.json and
@@ -122,7 +119,7 @@ public final class BankStats {
         var codes = rows.stream().map(Row::code).collect(Collectors.toSet());
         review.keySet().stream().filter(code -> !codes.contains(code))
                 .forEach(code -> problems.add("REVIEW.md: оценки для " + code + ", которого нет в банке"));
-        return new BankStats(List.copyOf(rows), readCompetencyTitles(layout.tasksDirectory()), List.copyOf(problems));
+        return new BankStats(List.copyOf(rows), CompetencyTitles.read(layout.tasksDirectory()), List.copyOf(problems));
     }
 
     /** Distributions printed by {@code gits-taskbank stats}. */
@@ -325,16 +322,5 @@ public final class BankStats {
             throw new UncheckedIOException("Cannot read " + file, e);
         }
         return new Review(scores, List.copyOf(problems));
-    }
-
-    private static Map<String, String> readCompetencyTitles(Path tasksDir) {
-        Path file = tasksDir.resolve("competencies.yaml");
-        if (!Files.isRegularFile(file)) {
-            return Map.of();
-        }
-        Map<String, String> titles = new TreeMap<>();
-        JsonNode competencies = SchemaCheck.readYaml(file).path("competencies");
-        competencies.fieldNames().forEachRemaining(code -> titles.put(code, competencies.path(code).path("title").asText()));
-        return titles;
     }
 }

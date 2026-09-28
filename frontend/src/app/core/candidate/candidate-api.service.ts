@@ -1,7 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, map, switchMap } from 'rxjs';
+import { Observable, switchMap } from 'rxjs';
 
+import { CsrfService } from '../http/csrf.service';
 import { retryTransient } from '../http/http-errors';
 import { TelemetryAccepted, TelemetryBatch } from '../telemetry/telemetry.models';
 import {
@@ -20,17 +21,10 @@ const API = '/api';
 @Injectable({ providedIn: 'root' })
 export class CandidateApi {
   private readonly http = inject(HttpClient);
-
-  /** Issues the XSRF-TOKEN cookie that every changing request needs. */
-  csrf(): Observable<void> {
-    return this.http.get(`${API}/auth/csrf`).pipe(
-      retryTransient(),
-      map(() => undefined),
-    );
-  }
+  private readonly csrf = inject(CsrfService);
 
   enter(token: string): Observable<CandidateView> {
-    return this.csrf().pipe(
+    return this.csrf.csrf().pipe(
       switchMap(() => this.http.post<CandidateView>(`${API}/candidate/enter`, { token })),
     );
   }
@@ -106,10 +100,7 @@ export class CandidateApi {
     return `${API}/candidate/tasks/${taskId}/telemetry`;
   }
 
-  /** The XSRF cookie may be missing after a reload of a deep link: fetch it first when it is. */
   private withCsrf<T>(request: Observable<T>): Observable<T> {
-    return document.cookie.split('; ').some((c) => c.startsWith('XSRF-TOKEN='))
-      ? request
-      : this.csrf().pipe(switchMap(() => request));
+    return this.csrf.withCsrf(request);
   }
 }

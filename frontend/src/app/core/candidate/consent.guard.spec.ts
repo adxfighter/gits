@@ -53,6 +53,13 @@ describe('consent guards', () => {
     expect(url(result)).toBe('/c/closed');
   });
 
+  it('sends the candidate to the offline page when the server fails', async () => {
+    const result = await run(consentGuard, (request) =>
+      request.flush(null, { status: 500, statusText: 'Server Error' }),
+    );
+    expect(url(result)).toBe('/c/offline');
+  });
+
   it('opens the consent page only for a candidate who has not agreed yet', async () => {
     expect(await run(candidateGuard, (request) => request.flush(me(false)))).toBe(true);
     expect(url(await run(candidateGuard, (request) => request.flush(me(true))))).toBe('/c/intro');

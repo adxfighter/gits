@@ -2,15 +2,17 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   HostListener,
   OnInit,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { Subscription, firstValueFrom, interval, switchMap, takeWhile } from 'rxjs';
+import { Subscription, concatMap, firstValueFrom, takeWhile, timer } from 'rxjs';
 
 import { CandidateApi } from '../../../core/candidate/candidate-api.service';
 import {
@@ -24,13 +26,17 @@ import {
 import { messageOf, statusOf } from '../../../core/http/http-errors';
 import { MarkdownPipe } from '../../../core/markdown/markdown.pipe';
 import { CodeEditor } from './code-editor';
+import { CodeSaver } from './code-saver';
 import { ConfirmDialog } from './confirm-dialog';
 import { ResultsPanel } from './results-panel';
 import { SessionTimer } from './session-timer';
 
-const AUTOSAVE_MS = 5000;
+/** Autosave checks every second; each task is sent at most once per server interval (5 s). */
+const AUTOSAVE_TICK_MS = 1000;
 const SESSION_SYNC_MS = 30000;
 const POLL_MS = 1000;
+/** Before the deadline all dirty tasks are flushed, so the automatic submit gets the latest code. */
+const FINAL_FLUSH_SECONDS = 12;
 
 interface Confirmation {
   title: string;
@@ -41,7 +47,8 @@ interface Confirmation {
 
 /**
  * /c/session — the workspace: statement and files on the left, the editor in the middle, results below, tasks,
- * timer and actions on top. Code is saved every 5 seconds, on task switch, on Ctrl+S and when the tab is hidden.
+ * timer and actions on top. Code of every task is saved within about 5 seconds of an edit (see CodeSaver), on task
+ * switch, on Ctrl+S, when the tab is hidden and before the session ends.
  */
 @Component({
   selector: 'app-session-page',
@@ -54,6 +61,7 @@ export class SessionPage implements OnInit {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly editor = viewChild(CodeEditor);
+  private readonly overlayButton = viewChild<ElementRef<HTMLButtonElement>>('overlayButton');
 
   protected readonly session = signal<SessionView | null>(null);
   protected readonly syncedAt = signal(Date.now());
@@ -61,24 +69,25 @@ export class SessionPage implements OnInit {
   private readonly tasks = signal<Record<string, TaskView>>({});
   protected readonly activePath = signal<string | null>(null);
   private readonly runs = signal<Record<string, RunView | null>>({});
-  /** Change counter per task; a save clears the task only if nothing changed while it was in flight. */
-  private readonly edits = new Map<string, number>();
-  private readonly savedEdits = new Map<string, number>();
-  protected readonly dirty = signal<ReadonlySet<string>>(new Set());
-  protected readonly saving = signal(false);
   protected readonly running = signal(false);
   protected readonly timeOver = signal(false);
   protected readonly notice = signal<string | null>(null);
   protected readonly confirmation = signal<Confirmation | null>(null);
+  protected readonly saver = new CodeSaver({
+    send: (taskId) => firstValueFrom(this.api.saveCode(taskId, this.editor()!.contents(this.tasks()[taskId]))),
+  });
   private poll?: Subscription;
   private destroyed = false;
+  private finalFlushDone = false;
+  /** The latest task the candidate asked for; answers for earlier clicks do not switch the view. */
+  private opening = 0;
 
   protected readonly task = computed(() => {
     const id = this.currentTaskId();
     return id ? (this.tasks()[id] ?? null) : null;
   });
-  protected readonly summary = computed(() =>
-    this.session()?.tasks.find((t) => t.id === this.currentTaskId()) ?? null,
+  protected readonly summary = computed(
+    () => this.session()?.tasks.find((t) => t.id === this.currentTaskId()) ?? null,
   );
   protected readonly run = computed(() => {
     const id = this.currentTaskId();
@@ -90,9 +99,15 @@ export class SessionPage implements OnInit {
   protected readonly allSubmitted = computed(
     () => !!this.session() && this.session()!.tasks.every((t) => t.status === 'SUBMITTED'),
   );
-  protected readonly activeFile = computed(
-    () => this.task()?.files.find((f) => f.path === this.activePath()) ?? null,
-  );
+  protected readonly hasUnsaved = computed(() => this.saver.dirty().size > 0);
+
+  constructor() {
+    effect(() => {
+      if (this.timeOver()) {
+        queueMicrotask(() => this.overlayButton()?.nativeElement.focus());
+      }
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     this.destroyRef.onDestroy(() => {
@@ -115,7 +130,7 @@ export class SessionPage implements OnInit {
     if (this.destroyed) {
       return;
     }
-    const autosave = setInterval(() => void this.saveCurrent(), AUTOSAVE_MS);
+    const autosave = setInterval(() => this.autosaveTick(), AUTOSAVE_TICK_MS);
     const sync = setInterval(() => void this.syncSession(), SESSION_SYNC_MS);
     this.destroyRef.onDestroy(() => {
       clearInterval(autosave);
@@ -126,11 +141,23 @@ export class SessionPage implements OnInit {
   // --- tasks and files ---------------------------------------------------------------------------------------------
 
   protected async selectTask(summary: TaskSummary): Promise<void> {
-    if (summary.id === this.currentTaskId()) {
+    const previous = this.currentTaskId();
+    if (summary.id === previous) {
       return;
     }
-    await this.saveCurrent();
-    await this.openTask(summary.id);
+    if (previous) {
+      // sent now if the server allows it, otherwise by the next autosave tick: the task's model keeps the code
+      this.saver.save(previous, false).catch((error: unknown) => void this.onSaveError(error));
+    }
+    try {
+      await this.openTask(summary.id);
+    } catch (error) {
+      if (statusOf(error) === 401) {
+        await this.handleFatal(error);
+      } else {
+        this.notice.set(messageOf(error, 'Не удалось открыть задачу. Попробуйте ещё раз.'));
+      }
+    }
   }
 
   protected selectFile(path: string): void {
@@ -139,14 +166,17 @@ export class SessionPage implements OnInit {
   }
 
   private async openTask(id: string): Promise<void> {
+    const ticket = ++this.opening;
     let task = this.tasks()[id];
     if (!task) {
-      task = await firstValueFrom(this.api.task(id));
-      this.tasks.update((all) => ({ ...all, [id]: task! }));
+      const loaded = await firstValueFrom(this.api.task(id));
+      this.tasks.update((all) => ({ ...all, [id]: loaded }));
+      task = loaded;
       // opening starts the task on the server
-      this.session.update((s) =>
-        s && { ...s, tasks: s.tasks.map((t) => (t.id === id && t.status === 'NOT_STARTED' ? { ...t, status: 'IN_PROGRESS' } : t)) },
-      );
+      this.updateSummary(id, (t) => (t.status === 'NOT_STARTED' ? { ...t, status: 'IN_PROGRESS' } : t));
+    }
+    if (ticket !== this.opening) {
+      return;
     }
     this.currentTaskId.set(id);
     const editable = task.files.find((f) => f.kind === 'STARTER' && f.editable);
@@ -154,47 +184,43 @@ export class SessionPage implements OnInit {
   }
 
   protected onChanged(change: { taskId: string }): void {
-    this.edits.set(change.taskId, (this.edits.get(change.taskId) ?? 0) + 1);
-    if (!this.dirty().has(change.taskId)) {
-      this.dirty.update((set) => new Set(set).add(change.taskId));
-    }
+    this.saver.changed(change.taskId);
   }
 
   // --- saving ------------------------------------------------------------------------------------------------------
 
-  protected async saveCurrent(): Promise<void> {
-    const task = this.task();
-    if (!task || !this.dirty().has(task.id) || this.closed() || this.saving()) {
-      return;
-    }
-    const version = this.edits.get(task.id) ?? 0;
-    this.saving.set(true);
-    try {
-      await firstValueFrom(this.api.saveCode(task.id, this.editor()!.contents(task)));
-      this.markSaved(task.id, version);
-    } catch (error) {
-      // 429: saved a moment ago, the next autosave will send it; the rest is shown
-      if (statusOf(error) === 409) {
-        await this.syncSession();
-      } else if (statusOf(error) === 401) {
-        await this.handleFatal(error);
-      } else if (statusOf(error) !== 429) {
-        this.notice.set(messageOf(error, 'Не удалось сохранить код — повторим через несколько секунд.'));
-      }
-    } finally {
-      this.saving.set(false);
+  /** Ctrl+S: the current task now, or as soon as the server allows. */
+  protected saveNow(): void {
+    const id = this.currentTaskId();
+    if (id && !this.isClosed(id)) {
+      this.saver.save(id, true).catch((error: unknown) => void this.onSaveError(error));
     }
   }
 
-  private markSaved(taskId: string, version: number): void {
-    this.savedEdits.set(taskId, version);
-    if ((this.edits.get(taskId) ?? 0) === version) {
-      this.dirty.update((set) => {
-        const next = new Set(set);
-        next.delete(taskId);
-        return next;
-      });
+  private autosaveTick(): void {
+    this.saver.tick(
+      (_taskId, error) => void this.onSaveError(error),
+      (taskId) => this.isClosed(taskId),
+    );
+    if (!this.finalFlushDone && this.remainingSeconds() <= FINAL_FLUSH_SECONDS && !this.timeOver()) {
+      this.finalFlushDone = true;
+      this.saver.flushAll().catch((error: unknown) => void this.onSaveError(error));
     }
+  }
+
+  private async onSaveError(error: unknown): Promise<void> {
+    if (statusOf(error) === 409) {
+      await this.syncSession();
+    } else if (statusOf(error) === 401) {
+      this.timeOver.set(true);
+    } else {
+      this.notice.set(messageOf(error, 'Не удалось сохранить код — повторим через несколько секунд.'));
+    }
+  }
+
+  private isClosed(taskId: string): boolean {
+    const summary = this.session()?.tasks.find((t) => t.id === taskId);
+    return this.timeOver() || this.session()?.status !== 'IN_PROGRESS' || summary?.status === 'SUBMITTED';
   }
 
   // --- run and submit ----------------------------------------------------------------------------------------------
@@ -236,7 +262,7 @@ export class SessionPage implements OnInit {
     if (!task || this.closed() || this.running()) {
       return;
     }
-    const version = this.edits.get(task.id) ?? 0;
+    const version = this.saver.version(task.id);
     this.running.set(true);
     this.notice.set(null);
     try {
@@ -245,7 +271,7 @@ export class SessionPage implements OnInit {
         mode === 'RUN' ? this.api.run(task.id, files) : this.api.submit(task.id, files),
       );
       // the files of a run are saved as the task's snapshot
-      this.markSaved(task.id, version);
+      this.saver.markSaved(task.id, version);
       this.setRun(task.id, {
         id: accepted.runId, mode, status: accepted.status, createdAt: new Date().toISOString(), finishedAt: null,
         compiled: null, testsTotal: null, testsPassed: null, compileOutput: null, tests: [], output: null,
@@ -268,12 +294,12 @@ export class SessionPage implements OnInit {
     }
   }
 
-  /** Polls the run once a second until it is finished. */
+  /** Polls the run once a second until it is finished; a slow answer is awaited, never cancelled. */
   private follow(taskId: string, runId: string): void {
     this.poll?.unsubscribe();
-    this.poll = interval(POLL_MS)
+    this.poll = timer(POLL_MS, POLL_MS)
       .pipe(
-        switchMap(() => this.api.runResult(runId)),
+        concatMap(() => this.api.runResult(runId)),
         takeWhile((run) => !FINAL_RUN_STATUSES.includes(run.status), true),
       )
       .subscribe({
@@ -300,7 +326,15 @@ export class SessionPage implements OnInit {
   // --- session -----------------------------------------------------------------------------------------------------
 
   private async finish(): Promise<void> {
-    await this.saveCurrent();
+    try {
+      // every task's latest code must reach the server before it submits the open ones
+      await this.saver.flushAll();
+    } catch (error) {
+      if (statusOf(error) !== 409 && statusOf(error) !== 401) {
+        this.notice.set(messageOf(error, 'Не удалось сохранить код. Проверьте подключение и попробуйте ещё раз.'));
+        return;
+      }
+    }
     try {
       await firstValueFrom(this.api.finishSession());
       await this.router.navigateByUrl('/c/done');
@@ -320,6 +354,11 @@ export class SessionPage implements OnInit {
 
   protected async leave(): Promise<void> {
     await this.router.navigateByUrl('/c/done');
+  }
+
+  private remainingSeconds(): number {
+    const session = this.session();
+    return session ? session.remainingSeconds - (Date.now() - this.syncedAt()) / 1000 : Infinity;
   }
 
   private async syncSession(): Promise<void> {
@@ -368,12 +407,12 @@ export class SessionPage implements OnInit {
 
   @HostListener('document:keydown', ['$event'])
   protected onKeydown(event: KeyboardEvent): void {
-    if (!(event.ctrlKey || event.metaKey)) {
+    if (!(event.ctrlKey || event.metaKey) || this.confirmation() || this.timeOver()) {
       return;
     }
-    if (event.key === 's' || event.key === 'S' || event.code === 'KeyS') {
+    if (event.code === 'KeyS' || event.key === 's' || event.key === 'S') {
       event.preventDefault();
-      void this.saveCurrent();
+      this.saveNow();
     } else if (event.key === 'Enter') {
       event.preventDefault();
       void this.runTests();
@@ -383,7 +422,7 @@ export class SessionPage implements OnInit {
   @HostListener('document:visibilitychange')
   protected onVisibilityChange(): void {
     if (document.visibilityState === 'hidden') {
-      void this.saveCurrent();
+      this.saver.tick((_taskId, error) => void this.onSaveError(error), (taskId) => this.isClosed(taskId));
     }
   }
 }

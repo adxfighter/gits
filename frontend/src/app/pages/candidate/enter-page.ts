@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, input, signal } from '@angular/core';
+import { Location } from '@angular/common';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
@@ -27,6 +28,7 @@ export class EnterPage implements OnInit {
 
   private readonly api = inject(CandidateApi);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
   protected readonly error = signal<string | null>(null);
 
   async ngOnInit(): Promise<void> {
@@ -34,6 +36,8 @@ export class EnterPage implements OnInit {
       const me = await firstValueFrom(this.api.enter(this.token()));
       await this.router.navigateByUrl(me.consentGiven ? '/c/intro' : '/c/consent', { replaceUrl: true });
     } catch (error) {
+      // the token does not stay in the address bar and history, whatever the answer
+      this.location.replaceState('/c');
       this.error.set(
         statusOf(error) === 404
           ? 'Ссылка недействительна. Проверьте, что она скопирована целиком.'

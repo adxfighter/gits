@@ -1,4 +1,4 @@
-<div class="ws">
+<div class="ws" [attr.inert]="timeOver() ? '' : null">
   <header class="ws__top">
     <span class="ws__logo">GITS</span>
     <nav class="ws__tasks" aria-label="Задачи">
@@ -21,9 +21,7 @@
     <span class="ws__spacer"></span>
     @if (session(); as s) {
       <span class="ws__save muted" aria-live="polite">
-        @if (saving()) {
-          Сохранение…
-        } @else if (currentTaskId() && dirty().has(currentTaskId()!)) {
+        @if (hasUnsaved()) {
           Есть несохранённые изменения
         } @else {
           Сохранено
@@ -84,20 +82,22 @@
 
   <main class="ws__main">
     @if (task(); as t) {
-      <div class="ws__tabs" role="tablist">
+      <div class="ws__tabs" aria-label="Открытые файлы">
         @for (file of t.files; track file.path) {
           <button
             type="button"
-            role="tab"
             class="ws__tab"
             [class.ws__tab--active]="file.path === activePath()"
-            [attr.aria-selected]="file.path === activePath()"
+            [attr.aria-pressed]="file.path === activePath()"
             (click)="selectFile(file.path)"
           >
             @if (!file.editable) {
               <span aria-hidden="true">🔒</span>
             }
             {{ fileName(file.path) }}
+            @if (!file.editable) {
+              <span class="visually-hidden">(только чтение)</span>
+            }
           </button>
         }
       </div>
@@ -108,7 +108,7 @@
       [activePath]="activePath()"
       [closed]="closed()"
       (changed)="onChanged($event)"
-      (saveRequested)="saveCurrent()"
+      (saveRequested)="saveNow()"
       (runRequested)="runTests()"
     />
     <section class="ws__results" aria-label="Результаты">
@@ -121,8 +121,8 @@
   <div class="ws__overlay" role="alertdialog" aria-labelledby="time-over">
     <div class="card">
       <h2 id="time-over">Время вышло</h2>
-      <p>Неотправленные задачи отправлены на проверку автоматически с последней сохранённой версией кода.</p>
-      <button type="button" class="btn btn--primary" (click)="leave()">Завершить</button>
+      <p>Неотправленные задачи будут отправлены на проверку автоматически с последней сохранённой версией кода.</p>
+      <button #overlayButton type="button" class="btn btn--primary" (click)="leave()">Завершить</button>
     </div>
   </div>
 }

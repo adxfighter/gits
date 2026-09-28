@@ -13,7 +13,6 @@ interface AmdRequire {
 declare global {
   interface Window {
     monaco?: MonacoApi;
-    MonacoEnvironment?: { getWorkerUrl(moduleId: string, label: string): string };
   }
 }
 
@@ -28,10 +27,8 @@ export class MonacoLoader {
 
   load(): Promise<MonacoApi> {
     this.loading ??= new Promise<MonacoApi>((resolve, reject) => {
+      // the AMD build finds its editor worker (vs/assets/editor.worker-*.js) next to the loader by itself
       const base = new URL('assets/monaco/vs', document.baseURI).href;
-      window.MonacoEnvironment = {
-        getWorkerUrl: () => `${base}/editor/editor.worker.js`,
-      };
       const script = document.createElement('script');
       script.src = `${base}/loader.js`;
       script.onload = () => {
@@ -47,8 +44,15 @@ export class MonacoLoader {
           reject,
         );
       };
-      script.onerror = () => reject(new Error('Не удалось загрузить редактор кода'));
+      script.onerror = () => {
+        script.remove();
+        reject(new Error('Не удалось загрузить редактор кода. Обновите страницу.'));
+      };
       document.head.appendChild(script);
+    }).catch((error: unknown) => {
+      // a failed load is not remembered: the next editor tries again
+      this.loading = undefined;
+      throw error;
     });
     return this.loading;
   }

@@ -29,3 +29,17 @@ export class DonePage {}
   `,
 })
 export class ClosedPage {}
+
+/** /c/offline — the server could not be reached while opening a candidate page. */
+@Component({
+  selector: 'app-offline-page',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <section class="card">
+      <h1>Нет связи с сервером</h1>
+      <p>Проверьте подключение к сети и откройте страницу снова. Ваш код сохранён на сервере до последнего автосохранения.</p>
+      <a class="btn btn--primary" href="/c/session">Вернуться к оценке</a>
+    </section>
+  `,
+})
+export class OfflinePage {}

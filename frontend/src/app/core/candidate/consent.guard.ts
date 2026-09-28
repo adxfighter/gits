@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn, Router, UrlTree } from '@angular/router';
 import { catchError, map, of } from 'rxjs';
 
 import { statusOf } from '../http/http-errors';
@@ -15,9 +15,7 @@ export const consentGuard: CanActivateFn = () => {
     .me()
     .pipe(
       map((me) => (me.consentGiven ? true : router.parseUrl('/c/consent'))),
-      catchError((error: unknown) =>
-        of(statusOf(error) === 401 || statusOf(error) === 403 ? router.parseUrl('/c/closed') : false),
-      ),
+      catchError((error: unknown) => of(fallback(router, error))),
     );
 };
 
@@ -28,8 +26,11 @@ export const candidateGuard: CanActivateFn = () => {
     .me()
     .pipe(
       map((me) => (me.consentGiven ? router.parseUrl('/c/intro') : true)),
-      catchError((error: unknown) =>
-        of(statusOf(error) === 401 || statusOf(error) === 403 ? router.parseUrl('/c/closed') : false),
-      ),
+      catchError((error: unknown) => of(fallback(router, error))),
     );
 };
+
+/** No candidate access: the closed page; any other failure (no connection, server error): the offline page. */
+function fallback(router: Router, error: unknown): UrlTree {
+  return router.parseUrl(statusOf(error) === 401 || statusOf(error) === 403 ? '/c/closed' : '/c/offline');
+}

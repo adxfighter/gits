@@ -38,6 +38,11 @@ export const routes: Routes = [
     title: 'Оценка недоступна — GITS',
   },
   {
+    path: 'c/offline',
+    loadComponent: () => import('./pages/candidate/done-page').then((m) => m.OfflinePage),
+    title: 'Нет связи — GITS',
+  },
+  {
     // must stay after the fixed /c/... pages
     path: 'c/:token',
     loadComponent: () => import('./pages/candidate/enter-page').then((m) => m.EnterPage),

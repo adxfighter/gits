@@ -1,0 +1,137 @@
+<div class="ws">
+  <header class="ws__top">
+    <span class="ws__logo">GITS</span>
+    <nav class="ws__tasks" aria-label="Задачи">
+      @for (t of session()?.tasks ?? []; track t.id) {
+        <button
+          type="button"
+          class="ws__task"
+          [class.ws__task--active]="t.id === currentTaskId()"
+          [attr.aria-current]="t.id === currentTaskId() ? 'step' : null"
+          (click)="selectTask(t)"
+          data-testid="task-tab"
+        >
+          <span class="ws__task-mark" [class]="'ws__task-mark ws__task-mark--' + t.status.toLowerCase()" aria-hidden="true">
+            {{ t.status === 'SUBMITTED' ? '✓' : t.status === 'IN_PROGRESS' ? '●' : '○' }}
+          </span>
+          {{ taskLabel(t) }}
+        </button>
+      }
+    </nav>
+    <span class="ws__spacer"></span>
+    @if (session(); as s) {
+      <span class="ws__save muted" aria-live="polite">
+        @if (saving()) {
+          Сохранение…
+        } @else if (currentTaskId() && dirty().has(currentTaskId()!)) {
+          Есть несохранённые изменения
+        } @else {
+          Сохранено
+        }
+      </span>
+      <app-session-timer [remainingSeconds]="s.remainingSeconds" [syncedAt]="syncedAt()" (expired)="onTimeOver()" />
+    }
+    <button type="button" class="btn" [disabled]="closed() || running()" (click)="runTests()" title="Ctrl+Enter">
+      Запустить тесты
+    </button>
+    <button type="button" class="btn btn--primary" [disabled]="closed() || running()" (click)="askSubmit()">
+      Отправить решение
+    </button>
+    <button type="button" class="btn btn--ghost" [disabled]="timeOver()" (click)="askFinish()">
+      Завершить оценку
+    </button>
+  </header>
+
+  @if (notice(); as message) {
+    <div class="ws__notice" role="alert">
+      <span>{{ message }}</span>
+      <button type="button" class="btn btn--ghost" (click)="notice.set(null)" aria-label="Закрыть">×</button>
+    </div>
+  }
+
+  <aside class="ws__side">
+    @if (task(); as t) {
+      <section class="ws__statement prose" [innerHTML]="t.statementMd | markdown"></section>
+      <section class="ws__files">
+        <h3>Файлы</h3>
+        <ul>
+          @for (file of t.files; track file.path) {
+            <li>
+              <button
+                type="button"
+                class="ws__file"
+                [class.ws__file--active]="file.path === activePath()"
+                (click)="selectFile(file.path)"
+                [title]="file.path"
+              >
+                <span aria-hidden="true">{{ file.editable ? '📄' : '🔒' }}</span>
+                {{ fileName(file.path) }}
+                @if (!file.editable) {
+                  <span class="visually-hidden">(только чтение)</span>
+                }
+              </button>
+            </li>
+          }
+        </ul>
+      </section>
+      @if (summary(); as s) {
+        <p class="muted ws__runs">Запусков: {{ s.runsUsed }} из {{ s.runsLimit }}</p>
+      }
+    } @else {
+      <p class="muted">Загружаем задачу…</p>
+    }
+  </aside>
+
+  <main class="ws__main">
+    @if (task(); as t) {
+      <div class="ws__tabs" role="tablist">
+        @for (file of t.files; track file.path) {
+          <button
+            type="button"
+            role="tab"
+            class="ws__tab"
+            [class.ws__tab--active]="file.path === activePath()"
+            [attr.aria-selected]="file.path === activePath()"
+            (click)="selectFile(file.path)"
+          >
+            @if (!file.editable) {
+              <span aria-hidden="true">🔒</span>
+            }
+            {{ fileName(file.path) }}
+          </button>
+        }
+      </div>
+    }
+    <app-code-editor
+      class="ws__editor"
+      [task]="task()"
+      [activePath]="activePath()"
+      [closed]="closed()"
+      (changed)="onChanged($event)"
+      (saveRequested)="saveCurrent()"
+      (runRequested)="runTests()"
+    />
+    <section class="ws__results" aria-label="Результаты">
+      <app-results-panel [run]="run()" />
+    </section>
+  </main>
+</div>
+
+@if (timeOver()) {
+  <div class="ws__overlay" role="alertdialog" aria-labelledby="time-over">
+    <div class="card">
+      <h2 id="time-over">Время вышло</h2>
+      <p>Неотправленные задачи отправлены на проверку автоматически с последней сохранённой версией кода.</p>
+      <button type="button" class="btn btn--primary" (click)="leave()">Завершить</button>
+    </div>
+  </div>
+}
+
+<app-confirm-dialog
+  [open]="!!confirmation()"
+  [title]="confirmation()?.title ?? ''"
+  [text]="confirmation()?.text ?? ''"
+  [confirmLabel]="confirmation()?.confirmLabel ?? 'Подтвердить'"
+  (confirmed)="confirm()"
+  (cancelled)="confirmation.set(null)"
+/>

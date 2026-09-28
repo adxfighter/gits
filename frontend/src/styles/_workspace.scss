@@ -1,0 +1,253 @@
+// The candidate workspace (/c/session): an IDE-like grid that fills the window.
+
+.ws {
+  display: grid;
+  grid-template-columns: minmax(280px, 30%) 1fr;
+  grid-template-rows: auto auto 1fr;
+  grid-template-areas:
+    'top top'
+    'notice notice'
+    'side main';
+  height: 100vh;
+  overflow: hidden;
+}
+
+.ws__top {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.ws__logo {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-right: 8px;
+}
+
+.ws__tasks {
+  display: flex;
+  gap: 4px;
+}
+
+.ws__task {
+  font: inherit;
+  font-size: 14px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ws__task--active {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+
+.ws__task-mark--submitted {
+  color: var(--ok);
+}
+
+.ws__task-mark--in_progress {
+  color: var(--accent);
+}
+
+.ws__spacer {
+  flex: 1;
+}
+
+.ws__save {
+  font-size: 13px;
+}
+
+.ws__notice {
+  grid-area: notice;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--warn) 20%, var(--surface));
+  border-bottom: 1px solid var(--border);
+}
+
+.ws__side {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.ws__statement {
+  flex: 1 0 auto;
+
+  h1 {
+    font-size: 20px;
+    margin-top: 0;
+  }
+}
+
+.ws__files {
+  h3 {
+    margin: 16px 0 4px;
+    font-size: 14px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.ws__file {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  padding: 3px 6px;
+  text-align: left;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg);
+  }
+}
+
+.ws__file--active {
+  background: var(--bg);
+  font-weight: 600;
+}
+
+.ws__runs {
+  font-size: 13px;
+}
+
+.ws__main {
+  grid-area: main;
+  display: grid;
+  grid-template-rows: auto 1fr minmax(120px, 32%);
+  min-height: 0;
+  min-width: 0;
+  background: #1e1e1e;
+}
+
+.ws__tabs {
+  display: flex;
+  overflow-x: auto;
+  background: #252526;
+}
+
+.ws__tab {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 14px;
+  border: none;
+  border-right: 1px solid #1e1e1e;
+  background: #2d2d2d;
+  color: #a9a9a9;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ws__tab--active {
+  background: #1e1e1e;
+  color: #ffffff;
+}
+
+.ws__editor {
+  min-height: 0;
+}
+
+.ws__results {
+  overflow: auto;
+  padding: 8px 12px;
+  color: #d4d4d4;
+  background: #181818;
+  border-top: 1px solid #333333;
+  font-size: 14px;
+
+  .muted {
+    color: #9a9a9a;
+  }
+}
+
+.results .state {
+  margin: 4px 0 8px;
+  font-weight: 600;
+}
+
+.results .state--ok {
+  color: #73c991;
+}
+
+.results .state--bad {
+  color: #f48771;
+}
+
+.results .output,
+.results .test__message {
+  margin: 4px 0;
+  padding: 6px 8px;
+  white-space: pre-wrap;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12px;
+  background: #101010;
+  border-radius: 4px;
+}
+
+.results .tests {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.results .test {
+  margin: 2px 0;
+}
+
+.results .test__mark {
+  display: inline-block;
+  width: 1.2em;
+}
+
+.results .test--passed .test__mark {
+  color: #73c991;
+}
+
+.results .test--failed .test__mark,
+.results .test--error .test__mark {
+  color: #f48771;
+}
+
+.ws__overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 55%);
+  z-index: 10;
+}
+
+.ws__top .btn,
+.ws__task {
+  white-space: nowrap;
+}
+

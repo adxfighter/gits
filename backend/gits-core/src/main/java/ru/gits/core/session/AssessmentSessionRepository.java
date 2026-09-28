@@ -25,4 +25,20 @@ public interface AssessmentSessionRepository extends JpaRepository<AssessmentSes
     Optional<AssessmentSession> findByIdAndInviteCompanyId(UUID id, UUID companyId);
 
     List<AssessmentSession> findByInviteIdIn(Collection<UUID> inviteIds);
+
+    /**
+     * Finished sessions without a score whose submits are all checked (or taken as lost: waiting since before
+     * {@code stuckBefore}), oldest first.
+     */
+    @Query(value = """
+            SELECT s.id FROM assessment_session s
+            WHERE s.status IN ('FINISHED', 'EXPIRED')
+              AND NOT EXISTS (SELECT 1 FROM session_score sc WHERE sc.session_id = s.id)
+              AND NOT EXISTS (SELECT 1 FROM run_job j JOIN session_task st ON st.id = j.session_task_id
+                              WHERE st.session_id = s.id AND j.mode = 'SUBMIT'
+                                AND j.status IN ('QUEUED', 'RUNNING') AND j.created_at > :stuckBefore)
+            ORDER BY s.finished_at
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<UUID> findIdsReadyForScoring(int limit, Instant stuckBefore);
 }

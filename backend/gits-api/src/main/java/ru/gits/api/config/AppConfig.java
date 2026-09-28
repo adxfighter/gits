@@ -8,11 +8,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import ru.gits.api.scoring.IndicatorProperties;
+import ru.gits.api.scoring.ScoringProperties;
 import ru.gits.api.session.SessionProperties;
 import ru.gits.api.telemetry.TelemetryProperties;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties({GitsProperties.class, SessionProperties.class, TelemetryProperties.class})
+@EnableConfigurationProperties({GitsProperties.class, SessionProperties.class, TelemetryProperties.class,
+        IndicatorProperties.class, ScoringProperties.class})
 @EnableScheduling
 @EnableAsync
 public class AppConfig {

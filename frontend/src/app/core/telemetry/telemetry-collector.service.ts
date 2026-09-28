@@ -113,6 +113,10 @@ export class TelemetryCollector {
         now: () => performance.now(),
       });
       this.streams.set(task.id, stream);
+      this.current = stream;
+      // the state at the start: a reloaded page is not left "away" by the hidden state its predecessor reported
+      this.record({ type: 'visibility', state: document.visibilityState === 'hidden' ? 'hidden' : 'visible' });
+      this.record({ type: document.hasFocus() ? 'focus' : 'blur' });
     }
     this.current = stream;
   }

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRouteSnapshot, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -24,6 +24,9 @@ interface PageState {
             <a routerLink="/employer" class="app-header__link">Приглашения</a>
             <span class="app-header__who" data-testid="header-user">{{ user.companyName }} · {{ user.email }}</span>
             <button class="btn btn--ghost" type="button" (click)="logout()" data-testid="logout">Выйти</button>
+            @if (logoutError()) {
+              <span class="error" role="alert" data-testid="logout-error">Не удалось выйти: нет связи с сервером.</span>
+            }
           </nav>
         }
       </header>
@@ -53,6 +56,7 @@ interface PageState {
 export class App {
   private readonly router = inject(Router);
   protected readonly auth = inject(AuthService);
+  protected readonly logoutError = signal(false);
 
   /**
    * Pages marked {@code data.fullscreen} (the workspace) take the whole window, without the header; employer pages
@@ -72,7 +76,11 @@ export class App {
   );
 
   protected logout(): void {
-    this.auth.logout().subscribe(() => void this.router.navigateByUrl('/login'));
+    this.logoutError.set(false);
+    this.auth.logout().subscribe({
+      next: () => void this.router.navigateByUrl('/login'),
+      error: () => this.logoutError.set(true),
+    });
   }
 
   private static deepest(route: ActivatedRouteSnapshot): ActivatedRouteSnapshot {

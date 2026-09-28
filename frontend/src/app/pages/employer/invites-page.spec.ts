@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InviteRow } from '../../core/employer/employer.models';
 import { inviteRow } from './employer-fixtures';
-import { InvitesPage } from './invites-page';
+import { INVITES_REFRESH_MS, InvitesPage } from './invites-page';
 
 describe('InvitesPage', () => {
   let http: HttpTestingController;
@@ -20,7 +20,10 @@ describe('InvitesPage', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    vi.useRealTimers();
+    http.verify();
+  });
 
   async function render(rows: InviteRow[]): Promise<{ fixture: ComponentFixture<InvitesPage>; root: HTMLElement }> {
     const fixture = TestBed.createComponent(InvitesPage);
@@ -89,6 +92,34 @@ describe('InvitesPage', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect(text(root.querySelector('[data-testid="invites-empty"]'))).toContain('Нет приглашений со статусом «Отозвано»');
+  });
+
+  it('refreshes itself while visible and at once when the tab comes back', () => {
+    vi.useFakeTimers();
+    const fixture = TestBed.createComponent(InvitesPage);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="invites-loading"]')).not.toBeNull();
+    http.expectOne('/api/employer/invites').flush([inviteRow({ trustLevel: 'GREEN' })]);
+    fixture.detectChanges();
+    expect(text(root.querySelector('[data-testid="trust"]'))).toBe('Замечаний нет');
+    vi.advanceTimersByTime(INVITES_REFRESH_MS);
+    http.expectOne('/api/employer/invites').flush([inviteRow({ trustLevel: 'RED' })]);
+    fixture.detectChanges();
+    expect(text(root.querySelector('[data-testid="trust"]'))).toBe('Серьёзные замечания');
+    // a failed refresh keeps the list
+    vi.advanceTimersByTime(INVITES_REFRESH_MS);
+    http.expectOne('/api/employer/invites').flush({}, { status: 500, statusText: 'Error' });
+    fixture.detectChanges();
+    expect(root.querySelectorAll('[data-testid="invite-row"]')).toHaveLength(1);
+    expect(root.querySelector('[data-testid="invites-stale"]')).not.toBeNull();
+    document.dispatchEvent(new Event('visibilitychange'));
+    http.expectOne('/api/employer/invites').flush([inviteRow()]);
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="invites-stale"]')).toBeNull();
+    fixture.destroy();
+    vi.advanceTimersByTime(INVITES_REFRESH_MS * 3);
+    http.expectNone('/api/employer/invites');
   });
 
   it('invites to create the first invite when there are none', async () => {

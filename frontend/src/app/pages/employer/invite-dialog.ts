@@ -10,9 +10,15 @@ import { messageOf } from '../../core/http/http-errors';
   selector: 'app-invite-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <dialog #dialog class="dialog invite-dialog" (cancel)="close($event)" (close)="closedByBrowser()">
+    <dialog
+      #dialog
+      class="dialog invite-dialog"
+      aria-labelledby="invite-dialog-title"
+      (cancel)="close($event)"
+      (close)="closedByBrowser()"
+    >
       @if (created(); as invite) {
-        <h2 class="dialog__title">Приглашение создано</h2>
+        <h2 class="dialog__title" id="invite-dialog-title">Приглашение создано</h2>
         <p>Отправьте кандидату ссылку. Она одноразовая и действует до {{ date(invite.expiresAt) }}.</p>
         <div class="invite-dialog__link">
           <input
@@ -28,6 +34,7 @@ import { messageOf } from '../../core/http/http-errors';
           <button class="btn btn--primary" type="button" (click)="copy(link)" data-testid="invite-copy">
             {{ copied() ? 'Скопировано' : 'Копировать' }}
           </button>
+          <span class="visually-hidden" role="status">{{ copied() ? 'Ссылка скопирована' : '' }}</span>
         </div>
         @if (copyFailed()) {
           <p class="invite-dialog__hint" role="status" data-testid="invite-copy-failed">
@@ -39,7 +46,7 @@ import { messageOf } from '../../core/http/http-errors';
           <button class="btn" type="button" (click)="finish()" data-testid="invite-done">Готово</button>
         </div>
       } @else {
-        <h2 class="dialog__title">Пригласить кандидата</h2>
+        <h2 class="dialog__title" id="invite-dialog-title">Пригласить кандидата</h2>
         <form (submit)="submit($event)" novalidate>
           <label class="field">
             <span class="field__label">Кандидат</span>
@@ -57,7 +64,7 @@ import { messageOf } from '../../core/http/http-errors';
           </label>
           <label class="field">
             <span class="field__label">Уровень</span>
-            <select class="input" name="level" [value]="level()" (change)="level.set($any(value($event)))" data-testid="invite-level">
+            <select class="input" name="level" [value]="level()" (change)="setLevel($event)" data-testid="invite-level">
               @for (option of levels; track option) {
                 <option [value]="option" [selected]="option === level()">{{ levelLabels[option] }}</option>
               }
@@ -67,7 +74,7 @@ import { messageOf } from '../../core/http/http-errors';
             <p class="error" role="alert" data-testid="invite-error">{{ text }}</p>
           }
           <div class="dialog__actions">
-            <button class="btn" type="button" (click)="cancel()">Отмена</button>
+            <button class="btn" type="button" [disabled]="busy()" (click)="cancel()">Отмена</button>
             <button class="btn btn--primary" type="submit" [disabled]="busy()" data-testid="invite-create">
               {{ busy() ? 'Создаём…' : 'Создать ссылку' }}
             </button>
@@ -116,6 +123,10 @@ export class InviteDialog {
 
   protected value(event: Event): string {
     return (event.target as HTMLInputElement | HTMLSelectElement).value;
+  }
+
+  protected setLevel(event: Event): void {
+    this.level.set((event.target as HTMLSelectElement).value as Level);
   }
 
   protected date(iso: string): string {
@@ -167,7 +178,10 @@ export class InviteDialog {
   /** Esc: after the link was shown it counts as «Готово», so the new invite appears in the list. */
   protected close(event: Event): void {
     event.preventDefault();
-    this.closed.emit({ created: this.created() !== null });
+    // while the invite is being created its one-time link must not be lost: the dialog waits for the answer
+    if (!this.busy()) {
+      this.closed.emit({ created: this.created() !== null });
+    }
   }
 
   protected closedByBrowser(): void {

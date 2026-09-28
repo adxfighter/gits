@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { Subject, catchError, filter, interval, map, merge, of, switchMap } from 'rxjs';
+import { Subject, catchError, filter, fromEvent, interval, map, merge, of, switchMap } from 'rxjs';
 
 import { EmployerApi } from '../../core/employer/employer-api.service';
 import {
@@ -47,13 +47,13 @@ export const INVITES_REFRESH_MS = 20_000;
       </header>
 
       @if (loading()) {
-        <p class="muted" data-testid="invites-loading">Загружаем приглашения…</p>
+        <p class="muted" role="status" data-testid="invites-loading">Загружаем приглашения…</p>
       } @else if (rows() === null) {
         <div class="state" role="alert" data-testid="invites-error">
           <p class="error">{{ error() }}</p>
           <button class="btn" type="button" (click)="refresh()">Повторить</button>
         </div>
-      } @else if (rows()!.length === 0) {
+      } @else if (rows()?.length === 0) {
         <div class="state" data-testid="invites-empty">
           @if (status(); as current) {
             <p>Нет приглашений со статусом «{{ statusLabels[current] }}».</p>
@@ -165,6 +165,11 @@ export class InvitesPage {
       toObservable(this.status).pipe(map(() => true)),
       this.reload.pipe(map(() => false)),
       interval(INVITES_REFRESH_MS).pipe(
+        filter(() => document.visibilityState === 'visible'),
+        map(() => false),
+      ),
+      // back from the candidate's window: the ticks missed while hidden are made up at once
+      fromEvent(document, 'visibilitychange').pipe(
         filter(() => document.visibilityState === 'visible'),
         map(() => false),
       ),

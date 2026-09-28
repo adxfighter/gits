@@ -42,11 +42,22 @@ export class AuthService {
     );
   }
 
-  /** Ends the session on the server; the app forgets the user even when the server could not be reached. */
+  /**
+   * Ends the session on the server. Without an answer (no connection, server error) the session may still be alive,
+   * so the error is passed on and the user stays signed in. 403 is a stale CSRF token: once more with a fresh one.
+   */
   logout(): Observable<void> {
-    return this.csrf.withCsrf(this.http.post<void>('/api/auth/logout', null)).pipe(
-      catchError(() => of(undefined)),
+    const post = () => this.http.post<void>('/api/auth/logout', null);
+    return this.csrf.withCsrf(post()).pipe(
+      catchError((error: unknown) =>
+        statusOf(error) === 403 ? this.csrf.csrf().pipe(switchMap(post)) : throwError(() => error),
+      ),
       tap(() => this.user.set(null)),
     );
+  }
+
+  /** The session ended on the server (expired, api restarted): the app forgets the user. */
+  sessionLost(): void {
+    this.user.set(null);
   }
 }

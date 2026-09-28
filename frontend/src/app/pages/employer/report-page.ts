@@ -68,7 +68,7 @@ interface TaskCard {
                 Предварительный балл, до психометрической калибровки
               </p>
               <p class="muted small">
-                Взвешенная доля пройденных скрытых тестов (junior ×1, middle ×1,5, senior ×2), без разминки.
+                Доля пройденных скрытых тестов по задачам, взвешенная по их уровню; разминка не входит.
                 Посчитан {{ date(r.scoreComputedAt) }}.
               </p>
             </div>
@@ -99,7 +99,7 @@ interface TaskCard {
                 <h2 class="task-card__title">{{ card.task.title }}</h2>
                 <p class="muted small">{{ card.task.templateTitle }}</p>
               </div>
-              @if (card.task.status === 'NOT_STARTED') {
+              @if (card.task.startedAt === null) {
                 <button class="btn" type="button" disabled data-testid="replay">Воспроизвести сессию</button>
               } @else {
                 <a class="btn btn--primary" [routerLink]="['/employer/replay', card.task.id]" data-testid="replay">
@@ -181,7 +181,7 @@ interface TaskCard {
           <button class="btn" type="button" (click)="retry()">Повторить</button>
         </div>
       } @else {
-        <p class="muted" data-testid="report-loading">Загружаем отчёт…</p>
+        <p class="muted" role="status" data-testid="report-loading">Загружаем отчёт…</p>
       }
     </section>
   `,
@@ -237,13 +237,16 @@ export class ReportPage {
       return [];
     }
     let number = 0;
-    const excluded = new Map(
-      (report.scorePerTask?.tasks ?? []).filter((t) => t.excluded).map((t) => [t.sessionTaskId, t.excluded!]),
-    );
+    const excluded = new Map<string, string>();
+    for (const score of report.scorePerTask?.tasks ?? []) {
+      if (score.excluded) {
+        excluded.set(score.sessionTaskId, score.excluded);
+      }
+    }
     return report.tasks.map((task) => ({
       task,
       heading: task.kind === 'CALIBRATION' ? 'Разминка · не оценивается' : `Задача ${++number}`,
-      hiddenTests: hiddenTestsText(task),
+      hiddenTests: hiddenTestsText(task, excluded.has(task.id)),
       indicators: indicatorLines(task.indicators),
       reasons: task.kind === 'CALIBRATION' ? [] : trustReasons(task.indicators),
       excluded: excluded.get(task.id) ?? null,
@@ -305,7 +308,8 @@ export class ReportPage {
     if (task.durationSeconds !== null) {
       return formatDuration(task.durationSeconds);
     }
-    return task.status === 'NOT_STARTED' ? 'не открыта' : 'не отправлена';
+    // a task never opened may still be submitted: the finish of the session sends it as it is
+    return task.startedAt === null ? 'не открыта' : 'не отправлена';
   }
 }
 

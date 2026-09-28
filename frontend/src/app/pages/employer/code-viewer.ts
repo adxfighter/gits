@@ -22,14 +22,13 @@ import { MonacoApi, MonacoLoader } from '../../core/editor/monaco-loader.service
     @if (paths().length === 0) {
       <p class="muted" data-testid="code-empty">Кода нет.</p>
     } @else {
-      <div class="code-viewer__tabs" role="tablist" aria-label="Файлы">
+      <div class="code-viewer__tabs" role="group" aria-label="Файлы">
         @for (path of paths(); track path) {
           <button
             class="code-viewer__tab"
             type="button"
-            role="tab"
             [class.code-viewer__tab--active]="path === active()"
-            [attr.aria-selected]="path === active()"
+            [attr.aria-pressed]="path === active()"
             [title]="path"
             (click)="selected.set(path)"
             data-testid="code-tab"
@@ -97,8 +96,8 @@ export class CodeViewer {
       .catch((error: unknown) => this.failed.set(error instanceof Error ? error.message : 'Не удалось показать код.'));
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
-      this.models.forEach((model) => model.dispose());
       this.editor?.dispose();
+      this.models.forEach((model) => model.dispose());
     });
     effect(() => {
       const monaco = this.monaco();

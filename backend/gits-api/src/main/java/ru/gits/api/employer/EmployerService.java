@@ -83,7 +83,8 @@ public class EmployerService {
     }
 
     public record TaskReport(UUID id, int orderNo, TaskKind kind, String templateCode, String templateTitle,
-                             List<String> competencies, List<String> competencyTitles, Level level, String title, SessionTaskStatus status,
+                             List<String> competencies, List<String> competencyTitles,
+                             Level level, String title, SessionTaskStatus status,
                              RunStatus submitStatus, Boolean submitCompiled, Integer hiddenTestsPassed,
                              Integer hiddenTestsTotal, Instant startedAt,
                              Instant submittedAt, Long durationSeconds, long runs, TrustLevel trustLevel,

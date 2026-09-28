@@ -42,7 +42,6 @@ export const INDICATOR_LABELS: Readonly<Record<string, string>> = {
   externalPastes: 'Вставки не из задачи',
   focusLoss: 'Уход со вкладки',
   burstMax: 'Пиковая скорость набора',
-  burstRelative: 'Скорость относительно разминки',
   idleThenBurst: 'Пауза, затем всплеск',
   linearity: 'Набор сверху вниз',
   editRatio: 'Исправления',
@@ -78,13 +77,19 @@ export function trustReasons(indicators: TaskReport['indicators']): string[] {
   return Array.isArray(value) ? value.filter((reason): reason is string => typeof reason === 'string') : [];
 }
 
-/** The result on hidden tests, or why there is none. */
-export function hiddenTestsText(task: TaskReport): string {
+/**
+ * The result on hidden tests, or why there is none, as the score sees it (docs/indicators.md): a task left out of the
+ * score ({@code excluded}) was not checked because of the platform; a check that ran no hidden test counts as 0.
+ */
+export function hiddenTestsText(task: TaskReport, excluded = false): string {
   if (task.kind === 'CALIBRATION') {
     return 'Не оценивается';
   }
+  if (excluded) {
+    return 'Не проверено: сбой проверки';
+  }
   if (task.submitStatus === null) {
-    return task.status === 'NOT_STARTED' ? 'Задача не открыта' : 'Решение не отправлено';
+    return task.startedAt === null ? 'Задача не открыта' : 'Решение не отправлено';
   }
   if (task.submitStatus === 'QUEUED' || task.submitStatus === 'RUNNING') {
     return 'Проверяется…';
@@ -98,7 +103,7 @@ export function hiddenTestsText(task: TaskReport): string {
   if (task.submitCompiled === false) {
     return '0: код не скомпилировался';
   }
-  return 'Не проверено: сбой проверки';
+  return task.submitStatus === 'ERROR' ? 'Не проверено: сбой проверки' : '0: скрытые тесты не выполнились';
 }
 
 const number = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 });

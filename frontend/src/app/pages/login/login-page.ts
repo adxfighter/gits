@@ -60,7 +60,7 @@ import { messageOf, statusOf } from '../../core/http/http-errors';
 export class LoginPage {
   /** Where to go after signing in (query parameter set by the guard). */
   readonly returnUrl = input<string>();
-  /** Why the guard sent the visitor here: `role` (not an employer) or `offline`. */
+  /** Why the visitor is here: `role` (not an employer), `expired` (the session ended) or `offline`. */
   readonly reason = input<string>();
 
   private readonly auth = inject(AuthService);
@@ -75,6 +75,8 @@ export class LoginPage {
     switch (this.reason()) {
       case 'role':
         return 'Кабинет работодателя открывается только под учётной записью работодателя.';
+      case 'expired':
+        return 'Сессия закончилась. Войдите снова.';
       case 'offline':
         return 'Не удалось связаться с сервером. Проверьте подключение и войдите ещё раз.';
       default:
@@ -99,6 +101,8 @@ export class LoginPage {
       next: (user) => {
         this.busy.set(false);
         if (user.role !== 'EMPLOYER') {
+          // no dashboard for this account, and no header with «Выйти» here: do not leave the session behind
+          this.auth.logout().subscribe({ error: () => undefined });
           this.error.set('Кабинет работодателя открывается только под учётной записью работодателя.');
           return;
         }
@@ -118,5 +122,5 @@ export class LoginPage {
 
 /** Only a path of the app itself: an address from the query string must not lead to another site. */
 export function safeReturnUrl(url: string | undefined): string {
-  return url && url.startsWith('/employer') && !url.startsWith('//') ? url : '/employer';
+  return url && url.startsWith('/employer') ? url : '/employer';
 }

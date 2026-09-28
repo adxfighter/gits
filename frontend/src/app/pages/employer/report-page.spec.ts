@@ -94,14 +94,19 @@ describe('ReportPage', () => {
         tasks: [
           taskReport({ id: 'a', submitStatus: 'DONE', submitCompiled: false, hiddenTestsPassed: 0, hiddenTestsTotal: null }),
           taskReport({ id: 'b', submitStatus: 'TIMEOUT', hiddenTestsPassed: 0, hiddenTestsTotal: null }),
-          taskReport({ id: 'c', status: 'NOT_STARTED', submitStatus: null, durationSeconds: null, hiddenTestsPassed: null, hiddenTestsTotal: null }),
+          taskReport({ id: 'c', status: 'NOT_STARTED', startedAt: null, submitStatus: null, durationSeconds: null, hiddenTestsPassed: null, hiddenTestsTotal: null }),
+          // never opened, sent as it was when the session finished
+          taskReport({ id: 'd', startedAt: null, submittedAt: '2026-09-28T09:10:00Z', durationSeconds: null, hiddenTestsPassed: 0 }),
         ],
       }),
     );
     const hidden = [...root.querySelectorAll('[data-testid="hidden-tests"]')].map(text);
-    expect(hidden).toEqual(['0: код не скомпилировался', '0: превышено время выполнения', 'Задача не открыта']);
-    const notOpened = root.querySelectorAll('[data-testid="task-card"]')[2];
-    expect(notOpened.querySelector('button[data-testid="replay"]')?.hasAttribute('disabled')).toBe(true);
+    expect(hidden).toEqual(['0: код не скомпилировался', '0: превышено время выполнения', 'Задача не открыта', '0 из 5']);
+    const cards = root.querySelectorAll('[data-testid="task-card"]');
+    for (const notOpened of [cards[2], cards[3]]) {
+      expect(notOpened.querySelector('button[data-testid="replay"]')?.hasAttribute('disabled')).toBe(true);
+      expect(notOpened.querySelector('[data-testid="duration"]')?.textContent?.trim()).toBe('не открыта');
+    }
   });
 
   it('shows a task left out of the score', async () => {
@@ -133,6 +138,39 @@ describe('ReportPage', () => {
     expect(text(root.querySelector('[data-testid="score"]'))).toBe('60');
     vi.advanceTimersByTime(REPORT_REFRESH_MS * 2);
     http.expectNone('/api/employer/sessions/session-1/report');
+  });
+
+  it('keeps the report on a failed reload and keeps trying', () => {
+    vi.useFakeTimers();
+    const fixture = create();
+    const url = '/api/employer/sessions/session-1/report';
+    http.expectOne(url).flush(sessionReport({ status: 'IN_PROGRESS', preliminaryScore: null, trustLevel: null }));
+    fixture.detectChanges();
+    vi.advanceTimersByTime(REPORT_REFRESH_MS);
+    http.expectOne(url).flush({}, { status: 500, statusText: 'Error' });
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="score-pending"]')?.textContent).toContain('Оценка ещё идёт');
+    vi.advanceTimersByTime(REPORT_REFRESH_MS);
+    http.expectOne(url).flush(sessionReport());
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="score"]')?.textContent?.trim()).toBe('60');
+  });
+
+  it('shows a load error with a retry', async () => {
+    const fixture = create();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="report-loading"]')).not.toBeNull();
+    http.expectOne('/api/employer/sessions/session-1/report').flush({ detail: 'Сбой' }, { status: 500, statusText: 'Error' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="report-error"]')?.textContent).toContain('Сбой');
+    root.querySelector<HTMLButtonElement>('[data-testid="report-error"] button')!.click();
+    fixture.detectChanges();
+    http.expectOne('/api/employer/sessions/session-1/report').flush(sessionReport());
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(root.querySelector('[data-testid="score"]')).not.toBeNull();
   });
 
   it('tells a missing session from other failures', async () => {

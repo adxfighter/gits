@@ -49,11 +49,35 @@
 
   <aside class="ws__side">
     @if (task(); as t) {
-      <section class="ws__statement prose" [innerHTML]="t.statementMd | markdown"></section>
+      @if (calibration()) {
+        <div class="ws__parts" role="group" aria-label="Части разминки">
+          <button
+            type="button"
+            class="ws__part"
+            [class.ws__part--active]="calibrationPart() === 1"
+            [attr.aria-pressed]="calibrationPart() === 1"
+            (click)="selectPart(1)"
+            data-testid="calibration-part-1"
+          >
+            Часть 1. Перепечатка
+          </button>
+          <button
+            type="button"
+            class="ws__part"
+            [class.ws__part--active]="calibrationPart() === 2"
+            [attr.aria-pressed]="calibrationPart() === 2"
+            (click)="selectPart(2)"
+            data-testid="calibration-part-2"
+          >
+            Часть 2. Задача
+          </button>
+        </div>
+      }
+      <section class="ws__statement prose" [innerHTML]="statement() | markdown"></section>
       <section class="ws__files">
         <h3>Файлы</h3>
         <ul>
-          @for (file of t.files; track file.path) {
+          @for (file of visibleFiles(); track file.path) {
             <li>
               <button
                 type="button"
@@ -80,10 +104,10 @@
     }
   </aside>
 
-  <main class="ws__main">
-    @if (task(); as t) {
+  <main class="ws__main" [class.ws__main--split]="split()">
+    @if (task() && !split()) {
       <div class="ws__tabs" aria-label="Открытые файлы">
-        @for (file of t.files; track file.path) {
+        @for (file of visibleFiles(); track file.path) {
           <button
             type="button"
             class="ws__tab"
@@ -100,6 +124,15 @@
             }
           </button>
         }
+      </div>
+    }
+    @if (split()) {
+      <div class="ws__pane-title" data-testid="reference-title">
+        <span aria-hidden="true">🔒</span> {{ fileName(calibration()!.reference.path) }} — образец, только чтение
+      </div>
+      <app-reference-viewer class="ws__reference" [content]="calibration()!.reference.content" />
+      <div class="ws__pane-title ws__pane-title--typing" data-testid="typing-title">
+        {{ fileName(calibration()!.typing.path) }} — наберите фрагмент здесь, между тройными кавычками
       </div>
     }
     <app-code-editor

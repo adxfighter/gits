@@ -26,9 +26,11 @@ import {
 import { messageOf, statusOf } from '../../../core/http/http-errors';
 import { MarkdownPipe } from '../../../core/markdown/markdown.pipe';
 import { TelemetryCollector } from '../../../core/telemetry/telemetry-collector.service';
+import { CalibrationPart, calibrationLayout } from './calibration';
 import { CodeEditor } from './code-editor';
 import { CodeSaver } from './code-saver';
 import { ConfirmDialog } from './confirm-dialog';
+import { ReferenceViewer } from './reference-viewer';
 import { ResultsPanel } from './results-panel';
 import { SessionTimer } from './session-timer';
 import { TelemetryDebugPanel } from './telemetry-debug';
@@ -56,7 +58,7 @@ interface Confirmation {
  */
 @Component({
   selector: 'app-session-page',
-  imports: [CodeEditor, ConfirmDialog, MarkdownPipe, ResultsPanel, SessionTimer, TelemetryDebugPanel],
+  imports: [CodeEditor, ConfirmDialog, MarkdownPipe, ReferenceViewer, ResultsPanel, SessionTimer, TelemetryDebugPanel],
   // telemetry exists only on this page, which opens after the consent (see consentGuard)
   providers: [TelemetryCollector],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -108,6 +110,22 @@ export class SessionPage implements OnInit {
     () => !!this.session() && this.session()!.tasks.every((t) => t.status === 'SUBMITTED'),
   );
   protected readonly hasUnsaved = computed(() => this.saver.dirty().size > 0);
+
+  /** The warm-up is shown in two parts: retyping on a split screen, then a short task. */
+  protected readonly calibration = computed(() => calibrationLayout(this.task()));
+  protected readonly calibrationPart = signal<CalibrationPart>(1);
+  protected readonly split = computed(() => !!this.calibration() && this.calibrationPart() === 1);
+  protected readonly statement = computed(() => {
+    const layout = this.calibration();
+    return layout ? layout.statement[this.calibrationPart()] : (this.task()?.statementMd ?? '');
+  });
+  protected readonly visibleFiles = computed(() => {
+    const layout = this.calibration();
+    if (!layout) {
+      return this.task()?.files ?? [];
+    }
+    return this.calibrationPart() === 1 ? [layout.reference, layout.typing] : layout.others;
+  });
 
   constructor() {
     effect(() => {
@@ -168,6 +186,21 @@ export class SessionPage implements OnInit {
     }
   }
 
+  /** Switches the warm-up between part 1 (retyping) and part 2 (the short task). */
+  protected selectPart(part: CalibrationPart): void {
+    const layout = this.calibration();
+    if (!layout) {
+      return;
+    }
+    this.calibrationPart.set(part);
+    const target = part === 1 ? layout.typing
+        : (layout.others.find((f) => f.kind === 'STARTER' && f.editable) ?? layout.others[0]);
+    if (target) {
+      this.activePath.set(target.path);
+    }
+    this.editor()?.focus();
+  }
+
   protected selectFile(path: string): void {
     this.activePath.set(path);
     this.editor()?.focus();
@@ -188,6 +221,13 @@ export class SessionPage implements OnInit {
     }
     this.telemetry.startTask(task);
     this.currentTaskId.set(id);
+    const layout = calibrationLayout(task);
+    if (layout) {
+      // the warm-up always opens on part 1: the typing file under the sample
+      this.calibrationPart.set(1);
+      this.activePath.set(layout.typing.path);
+      return;
+    }
     const editable = task.files.find((f) => f.kind === 'STARTER' && f.editable);
     this.activePath.set((editable ?? task.files[0])?.path ?? null);
   }

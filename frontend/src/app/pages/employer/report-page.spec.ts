@@ -80,12 +80,42 @@ describe('ReportPage', () => {
   it('marks the warm-up as not scored and shows its retyping result', async () => {
     const { root } = await render(sessionReport());
     const warmUp = root.querySelectorAll('[data-testid="task-card"]')[0];
-    expect(text(warmUp)).toContain('Разминка · не оценивается');
-    expect(text(warmUp.querySelector('[data-testid="hidden-tests"]'))).toBe('Не оценивается');
+    expect(text(warmUp)).toContain('Разминка · вес 0,5');
+    // no counted tests in the fixture: its part 2 gave nothing
+    expect(text(warmUp.querySelector('[data-testid="hidden-tests"]'))).toBe('0 (тесты части 2)');
     expect(text(warmUp)).toContain('не входит в оценку');
     expect(text(warmUp)).toContain('Перепечатка засчитана');
     // the warm-up rules do not count, so they are not listed as reasons
     expect(warmUp.querySelector('[data-testid="trust-reasons"]')).toBeNull();
+  });
+
+  it('shows what the score counts: the fixed tests, the «nothing broken» ones, and highlights the lines behind the remarks', async () => {
+    const counted = { counted: 3, countedPassed: 1, guards: 2, guardsBroken: 0, unchanged: false, share: 0.3333 };
+    const { root } = await render(
+      sessionReport({
+        tasks: [
+          calibrationReport({ counted: { counted: 3, countedPassed: 2, guards: null, guardsBroken: 0, unchanged: false, share: 0.6667 } }),
+          taskReport({
+            counted,
+            indicators: {
+              focusLoss: { value: { count: 10, seconds: 540 }, explanation: 'Уход со вкладки или из окна: 10 раз, всего 9 мин.' },
+              pasteRatio: { value: 0, explanation: 'Доля вставок 0%.' },
+              trustReasons: { value: ['Вкладка надолго покидалась.'], explanation: '' },
+              trustRules: { value: [{ level: 'YELLOW', reason: 'Вкладка надолго покидалась.', indicators: ['focusLoss'] }], explanation: '' },
+            },
+          }),
+          taskReport({ id: 'u', counted: { ...counted, countedPassed: 0, unchanged: true, share: 0 } }),
+          taskReport({ id: 'g', counted: { ...counted, guardsBroken: 1, share: 0 } }),
+        ],
+      }),
+    );
+    const hidden = [...root.querySelectorAll('[data-testid="hidden-tests"]')].map(text);
+    expect(hidden).toEqual(['2 из 3 (тесты части 2)', 'исправлено 1 из 3', '0: код не изменён', '0: сломано проверок «ничего не сломано» — 1']);
+    expect(text(root.querySelector('[data-testid="guards"]'))).toBe('Ещё 2 скрытых тестов проверяют, что ничего не сломано: прошли');
+    const card = root.querySelectorAll('[data-testid="task-card"]')[1];
+    expect(text(card.querySelector('[data-testid="trust-reasons"] li'))).toBe('Есть замечания: Вкладка надолго покидалась.');
+    expect(card.querySelector('tr[data-indicator="focusLoss"]')?.getAttribute('data-flag')).toBe('YELLOW');
+    expect(card.querySelector('tr[data-indicator="pasteRatio"]')?.hasAttribute('data-flag')).toBe(false);
   });
 
   it('explains why hidden tests have no result', async () => {

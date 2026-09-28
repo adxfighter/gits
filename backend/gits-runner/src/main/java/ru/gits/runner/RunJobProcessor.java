@@ -54,8 +54,12 @@ class RunJobProcessor {
                     Set<String> hiddenTestClasses, ExpectedTests expected, Set<String> editablePaths) {
     }
 
-    /** One test case as stored in run_result.test_cases. */
-    record StoredTestCase(String name, String status, String message, boolean hidden) {
+    /**
+     * One test case as stored in run_result.test_cases. {@code key} ({@link ru.gits.sandbox.TestKey}) — hidden tests
+     * only: scoring matches it against the tests the starter passes; it never reaches the candidate.
+     */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    record StoredTestCase(String name, String status, String message, boolean hidden, String key) {
     }
 
     private final RunJobRepository jobs;
@@ -202,10 +206,11 @@ class RunJobProcessor {
             boolean hidden = input.hiddenTestClasses().contains(topLevel(testCase.className()));
             if (hidden) {
                 hiddenNo++;
-                cases.add(new StoredTestCase("Скрытый тест " + hiddenNo, testCase.status().name(), null, true));
+                cases.add(new StoredTestCase("Скрытый тест " + hiddenNo, testCase.status().name(), null, true,
+                        ru.gits.sandbox.TestKey.of(testCase)));
             } else {
                 cases.add(new StoredTestCase(simpleName(testCase.className()) + " › " + testCase.name(),
-                        testCase.status().name(), testCase.message(), false));
+                        testCase.status().name(), testCase.message(), false, null));
             }
             // SUBMIT is scored on hidden tests; RUN reports the visible tests the candidate can see
             if (hidden == submit) {

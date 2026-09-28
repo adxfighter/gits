@@ -22,14 +22,14 @@
 | `consentVersion` | версия принятого текста согласия |
 | `preliminaryScore` | предварительный балл 0–100, до психометрической калибровки; `null`, пока не посчитан |
 | `scoreComputedAt` | время расчёта балла |
-| `scorePerTask` | расчёт балла по заданиям: `tasks[]` — `task` (псевдоним), `level`, `weight`, `hiddenTestsPassed`, `hiddenTestsTotal`, `share`; у задания, не проверенного из-за сбоя платформы, — `excluded` с пояснением; `note` — пометка о предварительности |
+| `scorePerTask` | расчёт балла по заданиям: `tasks[]` — `task` (псевдоним), `kind`, `level`, `weight`, `testsCounted`, `testsCountedPassed` (исправляющие тесты, у разминки — тесты части 2), `guardTests`, `guardTestsBroken` (проверки «ничего не сломано»), `codeUnchanged`, `share`, `note`; в сессиях до доработки — `hiddenTestsPassed`, `hiddenTestsTotal`; у задания, не проверенного из-за сбоя платформы, — `excluded` с пояснением; `note` — пометка о предварительности |
 
 ### tasks.jsonl — задания сессий
 | Поле | Смысл |
 |---|---|
 | `task`, `session` | псевдонимы задания и его сессии |
 | `orderNo` | номер в сессии (1 — разминка) |
-| `kind` | `CALIBRATION` (разминка, в балл не входит) или `TASK` |
+| `kind` | `CALIBRATION` (разминка, в балл с весом 0,5 по тестам части 2) или `TASK` |
 | `templateCode`, `variantCode` | шаблон и вариант задачи в банке задач (например, `T02`, `T02-v01`) |
 | `level` | уровень варианта |
 | `status` | `NOT_STARTED`, `IN_PROGRESS`, `SUBMITTED` |

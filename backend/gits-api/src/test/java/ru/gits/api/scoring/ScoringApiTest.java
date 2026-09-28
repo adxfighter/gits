@@ -213,10 +213,9 @@ class ScoringApiTest extends CandidateSessionTest {
             BigDecimal total = BigDecimal.ZERO;
             BigDecimal weighted = BigDecimal.ZERO;
             for (var t : sessionTasks.findBySessionIdOrderByOrderNo(sessionId)) {
-                if (t.getKind() == ru.gits.core.task.TaskKind.CALIBRATION) {
-                    continue;
-                }
-                BigDecimal weight = weights.get(t.getVariant().getLevel());
+                // the warm-up counts with 0.5 (here its submit did not compile: 0)
+                BigDecimal weight = t.getKind() == ru.gits.core.task.TaskKind.CALIBRATION ? new BigDecimal("0.5")
+                        : weights.get(t.getVariant().getLevel());
                 total = total.add(weight);
                 if (t.getId().equals(taskId)) {
                     weighted = weighted.add(weight.multiply(share));

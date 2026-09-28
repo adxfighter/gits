@@ -42,6 +42,16 @@ class TrustRulesTest {
     }
 
     @Test
+    void firedRulesNameTheIndicatorsOfTheReportTheyLookAt() {
+        var verdict = rules.evaluate(Map.of("pasteRatio", 0.7, "burstRelative", 3.0, "telemetryEvents", 50.0));
+        assertThat(verdict.fired()).extracting(TrustRules.Fired::reason).containsExactly("some paste", "much paste", "fast");
+        assertThat(verdict.fired().get(1).level()).isEqualTo(TrustLevel.RED);
+        assertThat(verdict.fired().get(0).indicators()).containsExactly("pasteRatio");
+        // the relative speed is explained in the burstMax line of the report
+        assertThat(verdict.fired().get(2).indicators()).containsExactly("burstMax");
+    }
+
+    @Test
     void equalityComparison() {
         assertThat(rules.evaluate(Map.of("telemetryEvents", 0.0)).reasons()).containsExactly("no data");
     }

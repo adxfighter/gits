@@ -25,6 +25,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import ru.gits.api.scoring.ScoringService;
+import ru.gits.api.scoring.TaskOutcome;
 import ru.gits.api.security.GitsUserDetails;
 import ru.gits.api.session.TaskCode;
 import ru.gits.core.audit.AuditLog;
@@ -86,7 +88,7 @@ public class EmployerService {
                              List<String> competencies, List<String> competencyTitles,
                              Level level, String title, SessionTaskStatus status,
                              RunStatus submitStatus, Boolean submitCompiled, Integer hiddenTestsPassed,
-                             Integer hiddenTestsTotal, Instant startedAt,
+                             Integer hiddenTestsTotal, TaskOutcome counted, Instant startedAt,
                              Instant submittedAt, Long durationSeconds, long runs, TrustLevel trustLevel,
                              JsonNode indicators, Map<String, String> finalCode) {
     }
@@ -128,6 +130,7 @@ public class EmployerService {
     private final SessionIndicatorsRepository indicators;
     private final AuditLogRepository audit;
     private final CompetencyCatalog competencyCatalog;
+    private final ScoringService scoring;
     private final ObjectMapper json;
     private final Clock clock;
 
@@ -135,7 +138,8 @@ public class EmployerService {
                            SessionTaskRepository sessionTasks, TaskFileRepository files, RunJobRepository runs,
                            RunResultRepository results, TelemetryBatchRepository batches,
                            SessionScoreRepository scores, SessionIndicatorsRepository indicators,
-                           AuditLogRepository audit, CompetencyCatalog competencyCatalog, ObjectMapper json,
+                           AuditLogRepository audit, CompetencyCatalog competencyCatalog, ScoringService scoring,
+                           ObjectMapper json,
                            Clock clock) {
         this.invites = invites;
         this.sessions = sessions;
@@ -148,6 +152,7 @@ public class EmployerService {
         this.indicators = indicators;
         this.audit = audit;
         this.competencyCatalog = competencyCatalog;
+        this.scoring = scoring;
         this.json = json;
         this.clock = clock;
     }
@@ -252,7 +257,8 @@ public class EmployerService {
         return new TaskReport(task.getId(), task.getOrderNo(), task.getKind(), template.getCode(),
                 template.getTitle(), competencies, competencyCatalog.titles(competencies), variant.getLevel(),
                 TaskCode.title(variant), task.getStatus(), submit.map(RunJob::getStatus).orElse(null),
-                result.map(RunResult::isCompiled).orElse(null), hiddenPassed, hiddenTotal, task.getStartedAt(),
+                result.map(RunResult::isCompiled).orElse(null), hiddenPassed, hiddenTotal,
+                submit.isPresent() ? scoring.outcome(task, submit.get()) : null, task.getStartedAt(),
                 task.getSubmittedAt(), duration, runs.countBySessionTaskIdAndMode(task.getId(), RunMode.RUN),
                 row == null ? null : row.getTrustLevel(), row == null ? null : read(row.getIndicators()), finalCode);
     }

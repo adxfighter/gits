@@ -117,6 +117,8 @@ gits:
       JUNIOR: 1.0
       MIDDLE: 1.5
       SENIOR: 2.0
+    # the warm-up counts a little: the tests of its part 2 (the candidate is told so on the rules page)
+    calibration-weight: 0.5
     # finished sessions whose submits are all checked get their indicators and score
     check-interval: 15s
     # a submit still queued or running after this is taken as lost (runner down): scored without that task

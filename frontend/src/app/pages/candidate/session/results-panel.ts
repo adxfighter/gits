@@ -51,7 +51,7 @@ import { RetypingResult, RunView } from '../../../core/candidate/candidate.model
             } @else {
               <p class="state" [class.state--ok]="allPassed()" [class.state--bad]="!allPassed()" data-testid="results-state">
                 @if (current.mode === 'SUBMIT' && calibration()) {
-                  Разминка отправлена. Она не влияет на оценку.
+                  Разминка отправлена. В балл она входит с небольшим весом.
                 } @else if (current.mode === 'SUBMIT') {
                   Решение отправлено. Скрытые тесты: пройдено {{ current.testsPassed }} из {{ current.testsTotal }}
                 } @else {

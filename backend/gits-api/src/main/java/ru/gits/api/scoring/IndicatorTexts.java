@@ -58,6 +58,8 @@ final class IndicatorTexts {
                 : reasons.isEmpty()
                 ? "Ни одно правило не сработало. Правила экспериментальные (v1.0)."
                 : "Сработавшие правила (экспериментальные, v1.0): " + String.join(" ", reasons)));
+        // which rule holds, at what level and on which indicators: the report highlights those lines
+        map.put("trustRules", new Entry(verdict.fired(), "Сработавшие правила с уровнем и индикаторами, на которые они смотрят."));
         return map;
     }
 

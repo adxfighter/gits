@@ -77,7 +77,8 @@ public class CandidateTaskService {
                           List<TestView> tests, String output, Long durationMs) {
     }
 
-    private record StoredTestCase(String name, String status, String message, boolean hidden) {
+    /** {@code key} identifies a hidden test for scoring; it is not part of what the candidate sees. */
+    private record StoredTestCase(String name, String status, String message, boolean hidden, String key) {
     }
 
     private final InviteRepository invites;

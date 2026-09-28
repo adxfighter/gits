@@ -10,10 +10,13 @@ import {
   formatDuration,
   formatScore,
   hiddenTestsText,
+  FiredRule,
+  TRUST_LABELS,
+  firedRules,
+  guardsText,
   indicatorLines,
-  trustReasons,
 } from '../../core/employer/employer-labels';
-import { SessionReport, SessionStatus, TaskReport } from '../../core/employer/employer.models';
+import { SessionReport, SessionStatus, TaskReport, TrustLevel } from '../../core/employer/employer.models';
 import { messageOf, statusOf } from '../../core/http/http-errors';
 import { CodeViewer } from './code-viewer';
 import { TrustBadge } from './trust-badge';
@@ -32,7 +35,8 @@ interface TaskCard {
   heading: string;
   hiddenTests: string;
   indicators: ReturnType<typeof indicatorLines>;
-  reasons: string[];
+  rules: FiredRule[];
+  guards: string | null;
   excluded: string | null;
 }
 
@@ -68,7 +72,9 @@ interface TaskCard {
                 Предварительный балл, до психометрической калибровки
               </p>
               <p class="muted small">
-                Доля пройденных скрытых тестов по задачам, взвешенная по их уровню; разминка не входит.
+                По каждой задаче — доля исправленного: скрытые тесты, которые исходный код не проходит (тесты
+                «ничего не сломано» не прибавляют баллов, но если сломать хотя бы один — задача 0; неизменённый код —
+                0). Веса по уровню задачи: junior ×1, middle ×1,5, senior ×2; разминка — ×0,5 по тестам части 2.
                 Посчитан {{ date(r.scoreComputedAt) }}.
               </p>
             </div>
@@ -110,7 +116,13 @@ interface TaskCard {
 
             <dl class="facts">
               <div><dt>Уровень</dt><dd>{{ levelLabels[card.task.level] }}</dd></div>
-              <div><dt>Скрытые тесты</dt><dd data-testid="hidden-tests">{{ card.hiddenTests }}</dd></div>
+              <div>
+                <dt>Скрытые тесты</dt>
+                <dd data-testid="hidden-tests">{{ card.hiddenTests }}</dd>
+                @if (card.guards) {
+                  <dd class="facts__note muted" data-testid="guards">{{ card.guards }}</dd>
+                }
+              </div>
               <div><dt>Время</dt><dd data-testid="duration">{{ duration(card.task) }}</dd></div>
               <div><dt>Запуски тестов</dt><dd data-testid="runs">{{ card.task.runs }}</dd></div>
               <div>
@@ -140,10 +152,12 @@ interface TaskCard {
                 Появятся после завершения сессии и проверки решений.
               </p>
             } @else {
-              @if (card.reasons.length > 0) {
+              @if (card.rules.length > 0) {
                 <ul class="reasons" data-testid="trust-reasons">
-                  @for (reason of card.reasons; track $index) {
-                    <li>{{ reason }}</li>
+                  @for (rule of card.rules; track $index) {
+                    <li [class]="'reason reason--' + rule.level.toLowerCase()" [attr.data-level]="rule.level">
+                      <span class="reason__level">{{ trustLabel(rule.level) }}:</span> {{ rule.reason }}
+                    </li>
                   }
                 </ul>
               } @else if (card.task.kind === 'TASK') {
@@ -152,8 +166,18 @@ interface TaskCard {
               <table class="table indicators" data-testid="indicators">
                 <tbody>
                   @for (line of card.indicators; track line.name) {
-                    <tr [attr.data-indicator]="line.name">
-                      <th scope="row">{{ line.label }}</th>
+                    <tr
+                      [attr.data-indicator]="line.name"
+                      [attr.data-flag]="line.flag"
+                      [class]="line.flag ? 'indicator--flag indicator--' + line.flag.toLowerCase() : ''"
+                    >
+                      <th scope="row">
+                        @if (line.flag) {
+                          <span class="indicator__mark" aria-hidden="true">▲</span>
+                          <span class="visually-hidden">{{ trustLabel(line.flag) }}:</span>
+                        }
+                        {{ line.label }}
+                      </th>
                       <td>{{ line.explanation }}</td>
                     </tr>
                   }
@@ -213,9 +237,19 @@ interface TaskCard {
     .facts { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 16px 0 12px; }
     .facts dt { color: var(--text-muted); font-size: 13px; }
     .facts dd { margin: 0; font-weight: 600; }
+    .facts__note { font-weight: 400 !important; font-size: 12px; max-width: 260px; }
     .competencies { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
     .chip { padding: 2px 8px; font-size: 13px; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; }
     .reasons { margin: 0 0 12px; padding-left: 20px; }
+    .reason__level { font-weight: 600; }
+    .reason--yellow .reason__level { color: var(--warn); }
+    .reason--red .reason__level { color: var(--danger); }
+    .indicator--flag > * { background: rgb(224 179 65 / 12%); }
+    .indicator--red > * { background: rgb(179 38 30 / 10%); }
+    .indicator--flag th { box-shadow: inset 3px 0 0 var(--warn); }
+    .indicator--red th { box-shadow: inset 3px 0 0 var(--danger); }
+    .indicator__mark { color: var(--warn); margin-right: 4px; font-size: 11px; }
+    .indicator--red .indicator__mark { color: var(--danger); }
     .indicators th { width: 240px; text-align: left; font-weight: 600; vertical-align: top; }
   `,
 })
@@ -245,10 +279,14 @@ export class ReportPage {
     }
     return report.tasks.map((task) => ({
       task,
-      heading: task.kind === 'CALIBRATION' ? 'Разминка · не оценивается' : `Задача ${++number}`,
+      heading: task.kind === 'CALIBRATION' ? 'Разминка · вес 0,5' : `Задача ${++number}`,
       hiddenTests: hiddenTestsText(task, excluded.has(task.id)),
-      indicators: indicatorLines(task.indicators),
-      reasons: task.kind === 'CALIBRATION' ? [] : trustReasons(task.indicators),
+      indicators: task.kind === 'CALIBRATION'
+        ? indicatorLines(task.indicators).map((line) => ({ ...line, flag: null }))
+        : indicatorLines(task.indicators),
+      // the warm-up does not count toward trust: its rules are neither listed nor highlighted
+      rules: task.kind === 'CALIBRATION' ? [] : firedRules(task.indicators),
+      guards: guardsText(task),
       excluded: excluded.get(task.id) ?? null,
     }));
   });
@@ -302,6 +340,10 @@ export class ReportPage {
 
   protected score(value: number): string {
     return formatScore(value);
+  }
+
+  protected trustLabel(level: TrustLevel): string {
+    return TRUST_LABELS[level];
   }
 
   protected duration(task: TaskReport): string {

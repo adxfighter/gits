@@ -137,6 +137,8 @@ class EmployerApiTest extends CandidateSessionTest {
         String body = mvc.perform(get(path).session(done.employer())).andExpect(status().isOk()).andReturn()
                 .getResponse().getContentAsString();
         JsonNode replay = json.readTree(body);
+        // the way back to the report
+        assertThat(replay.get("sessionId").asText()).isEqualTo(done.sessionId().toString());
         assertThat(list(replay.get("initialFiles"))).isNotEmpty()
                 .allSatisfy(file -> assertThat(file.get("kind").asText()).isIn("STARTER", "READONLY", "VISIBLE_TEST"));
         List<JsonNode> runsOfTask = list(replay.get("runs"));

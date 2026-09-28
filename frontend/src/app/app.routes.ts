@@ -29,7 +29,7 @@ export const routes: Routes = [
   {
     path: 'employer/replay/:sessionTaskId',
     canActivate: [employerGuard],
-    loadComponent: () => import('./pages/employer/replay-page').then((m) => m.ReplayPage),
+    loadComponent: () => import('./pages/employer/replay/replay-page').then((m) => m.ReplayPage),
     title: 'Воспроизведение — GITS',
   },
   {

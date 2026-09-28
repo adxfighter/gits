@@ -76,6 +76,12 @@ class SessionController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(tasks.submit(inviteId(), sessionTaskId, files(body)));
     }
 
+    /** Warm-up part 1: the retyping is compared with the sample on the platform, nothing is compiled or run. */
+    @PostMapping("/tasks/{sessionTaskId}/retyping")
+    RetypingCheck.Result retyping(@PathVariable UUID sessionTaskId, @RequestBody(required = false) CodeRequest body) {
+        return tasks.checkRetyping(inviteId(), sessionTaskId, files(body));
+    }
+
     @GetMapping("/runs/{runId}")
     CandidateTaskService.RunView run(@PathVariable UUID runId) {
         return tasks.runView(inviteId(), runId);

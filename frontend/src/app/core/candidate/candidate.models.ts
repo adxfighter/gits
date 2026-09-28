@@ -98,4 +98,12 @@ export interface RunView {
   durationMs: number | null;
 }
 
+/** Result of the warm-up retyping check (part 1), made by the platform without running any code. */
+export interface RetypingResult {
+  similarityPercent: number;
+  passed: boolean;
+  pasteSuspected: boolean;
+  message: string;
+}
+
 export const FINAL_RUN_STATUSES: readonly RunStatus[] = ['DONE', 'ERROR', 'TIMEOUT'];

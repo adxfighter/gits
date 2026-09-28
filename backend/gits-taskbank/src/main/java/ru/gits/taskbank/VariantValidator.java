@@ -73,9 +73,9 @@ public final class VariantValidator {
         }
         VariantSpec variant = spec.get();
         checks.add(checkForbidden(sources));
-        checks.add(checkSizes(sources));
+        checks.add(checkSizes(sources, variant.isCalibration()));
         if (variant.isCalibration()) {
-            // The retyped fragment is public by design and the visible test holds the copy it compares with
+            // The retyped sample is public by design (Sample.txt), and the short task's solution is not a secret
             checks.add(new Check("no_leak", true, "не требуется для калибровочного блока: решение не секретно"));
         } else {
             checks.add(LeakCheck.findLeak(sources.starter(), sources.solution(), sources.visibleTests())
@@ -212,8 +212,17 @@ public final class VariantValidator {
 
     private Check checkForbidden(VariantSources sources) {
         List<String> violations = new ArrayList<>();
-        sources.starter().forEach((path, code) -> violations.addAll(forbidden.check("starter/" + path, code, false)));
-        sources.solution().forEach((path, code) -> violations.addAll(forbidden.check("solution/" + path, code, false)));
+        // text files are not Java: they are never compiled, so no construct in them can run
+        sources.starter().forEach((path, code) -> {
+            if (SourceArchive.isSource(path)) {
+                violations.addAll(forbidden.check("starter/" + path, code, false));
+            }
+        });
+        sources.solution().forEach((path, code) -> {
+            if (SourceArchive.isSource(path)) {
+                violations.addAll(forbidden.check("solution/" + path, code, false));
+            }
+        });
         sources.visibleTests().forEach((path, code) -> violations.addAll(forbidden.check("tests-visible/" + path, code, true)));
         sources.hiddenTests().forEach((path, code) -> violations.addAll(forbidden.check("tests-hidden/" + path, code, true)));
         return violations.isEmpty()
@@ -221,7 +230,8 @@ public final class VariantValidator {
                 : new Check("forbidden", false, String.join("; ", violations));
     }
 
-    private Check checkSizes(VariantSources sources) {
+    /** The warm-up is a typing sample, not a task: only the upper starter size applies to it. */
+    private Check checkSizes(VariantSources sources, boolean calibration) {
         int statementLength = sources.statement().strip().length();
         long loc = sources.starter().values().stream()
                 .flatMap(String::lines).filter(line -> !line.isBlank()).count();
@@ -229,7 +239,7 @@ public final class VariantValidator {
         if (statementLength < STATEMENT_MIN || statementLength > STATEMENT_MAX) {
             problems.add("statement.md: " + statementLength + " символов, нужно " + STATEMENT_MIN + "–" + STATEMENT_MAX);
         }
-        if (loc < STARTER_LOC_MIN || loc > STARTER_LOC_MAX) {
+        if ((!calibration && loc < STARTER_LOC_MIN) || loc > STARTER_LOC_MAX) {
             problems.add("starter: " + loc + " непустых строк, нужно " + STARTER_LOC_MIN + "–" + STARTER_LOC_MAX);
         }
         return new Check("sizes", problems.isEmpty(),

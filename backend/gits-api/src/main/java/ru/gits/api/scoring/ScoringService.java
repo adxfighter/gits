@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -21,6 +22,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import ru.gits.api.session.CalibrationFiles;
+import ru.gits.api.session.RetypingCheck;
 import ru.gits.api.session.TaskCode;
 import ru.gits.core.audit.AuditLog;
 import ru.gits.core.audit.AuditLogRepository;
@@ -142,7 +145,15 @@ public class ScoringService {
                 baseSpeed = computed.burstMax();
             }
             TrustRules.Verdict verdict = rules.evaluate(computed.values());
-            String stored = write(IndicatorTexts.of(computed, baseSpeed, verdict, calibration, indicatorProperties));
+            Map<String, IndicatorTexts.Entry> texts = IndicatorTexts.of(computed, baseSpeed, verdict, calibration,
+                    indicatorProperties);
+            if (calibration) {
+                // part 1 of the warm-up: how closely the sample was retyped, and whether it was pasted
+                retyping(task).ifPresent(result -> texts.put("retyping", new IndicatorTexts.Entry(Map.of(
+                        "similarityPercent", result.similarityPercent(), "passed", result.passed(),
+                        "pasteSuspected", result.pasteSuspected()), result.message())));
+            }
+            String stored = write(texts);
             indicatorRows.findBySessionTaskId(task.getId()).ifPresentOrElse(
                     row -> row.recompute(stored, verdict.level(), now),
                     () -> indicatorRows.save(new SessionIndicators(task, stored, verdict.level(), now)));
@@ -164,14 +175,35 @@ public class ScoringService {
         return calculator.compute(events, finalCodeChars(task, jobs), baseSpeed, firstRun, runJobs.size());
     }
 
-    /** Size of the code that was checked: the last SUBMIT payload, else the last saved snapshot. */
+    /** Size of the code that was checked (characters of all editable files). */
     private int finalCodeChars(SessionTask task, List<RunJob> jobs) {
-        Map<String, String> code = jobs.stream().filter(job -> job.getMode() == RunMode.SUBMIT)
+        return finalCode(task, jobs).values().stream().mapToInt(String::length).sum();
+    }
+
+    /** The code that was checked: the last SUBMIT payload, else the last saved snapshot. */
+    private Map<String, String> finalCode(SessionTask task, List<RunJob> jobs) {
+        return jobs.stream().filter(job -> job.getMode() == RunMode.SUBMIT)
                 .reduce((first, second) -> second)
                 .map(job -> readCode(job.getPayload()))
                 .orElseGet(() -> TaskCode.current(task.getCurrentCode(),
                         files.findByVariantIdAndKindIn(task.getVariant().getId(), List.of(FileKind.STARTER))));
-        return code.values().stream().mapToInt(String::length).sum();
+    }
+
+    /** The retyping check of a warm-up task on its final code and telemetry; empty without retyping files. */
+    private Optional<RetypingCheck.Result> retyping(SessionTask task) {
+        var retypingFiles = CalibrationFiles.of(files.findByVariantIdAndKindIn(task.getVariant().getId(),
+                List.of(FileKind.STARTER, FileKind.READONLY)));
+        if (retypingFiles.isEmpty()) {
+            return Optional.empty();
+        }
+        List<JsonNode> events = new ArrayList<>();
+        for (TelemetryBatch batch : batches.findBySessionTaskIdOrderBySeq(task.getId())) {
+            read(batch.getEvents()).forEach(events::add);
+        }
+        String typed = finalCode(task, runs.findBySessionTaskIdOrderByCreatedAt(task.getId()))
+                .getOrDefault(retypingFiles.get().typing().getPath(), "");
+        return Optional.of(RetypingCheck.evaluate(retypingFiles.get().sample().getContent(), typed,
+                retypingFiles.get().largestPaste(events)));
     }
 
     /** Submits created before this and still not checked are taken as lost. */

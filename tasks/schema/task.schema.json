@@ -40,7 +40,7 @@
   "$defs": {
     "mainPath": {
       "type": "string",
-      "pattern": "^src/main/java/([A-Za-z_$][A-Za-z0-9_$]*/)*[A-Za-z_$][A-Za-z0-9_$]*\\.java$"
+      "pattern": "^src/main/java/([A-Za-z_$][A-Za-z0-9_$]*/)*[A-Za-z_$][A-Za-z0-9_$]*\\.(java|txt)$"
     }
   }
 }

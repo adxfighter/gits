@@ -87,12 +87,12 @@ class SessionApiTest extends CandidateSessionTest {
         assertThat(session.get("status").asText()).isEqualTo("IN_PROGRESS");
         assertThat(session.get("remainingSeconds").asLong()).isEqualTo(90 * 60);
 
-        // Calibration block: its editable files are Typing and the part-2 class
+        // Calibration block: its editable files are the retyping text (Typing.txt) and the part-2 class
         UUID calibrationId = id(list.get(0));
         JsonNode calibration = read(candidate.get("/candidate/tasks/" + calibrationId).andExpect(status().isOk())
                 .andReturn().getResponse());
         assertThat(calibration.get("status").asText()).isEqualTo("IN_PROGRESS");
-        assertThat(calibration.get("code").fieldNames()).toIterable().anyMatch(path -> path.endsWith("Typing.java"));
+        assertThat(calibration.get("code").fieldNames()).toIterable().anyMatch(path -> path.endsWith("Typing.txt"));
 
         // First task: save code, RUN, see the visible test results
         UUID firstTask = id(list.get(1));

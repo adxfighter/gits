@@ -176,6 +176,51 @@
   min-height: 0;
 }
 
+// warm-up part 1: the sample on top, the typing editor below, each half of the editor area
+.ws__main--split {
+  grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr) minmax(120px, 28%);
+}
+
+.ws__reference {
+  min-height: 0;
+}
+
+.ws__pane-title {
+  padding: 4px 12px;
+  font-size: 13px;
+  color: #cccccc;
+  background: #252526;
+  border-bottom: 1px solid #1e1e1e;
+}
+
+.ws__pane-title--typing {
+  border-top: 2px solid #3c3c3c;
+}
+
+.ws__parts {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.ws__part {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ws__part--active {
+  border-color: var(--accent);
+  background: var(--bg);
+  font-weight: 600;
+}
+
 .ws__results {
   overflow: auto;
   padding: 8px 12px;

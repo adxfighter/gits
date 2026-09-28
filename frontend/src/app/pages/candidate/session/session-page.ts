@@ -17,6 +17,7 @@ import { Subscription, concatMap, firstValueFrom, takeWhile, timer } from 'rxjs'
 import { CandidateApi } from '../../../core/candidate/candidate-api.service';
 import {
   FINAL_RUN_STATUSES,
+  RetypingResult,
   RunMode,
   RunView,
   SessionView,
@@ -26,9 +27,11 @@ import {
 import { messageOf, statusOf } from '../../../core/http/http-errors';
 import { MarkdownPipe } from '../../../core/markdown/markdown.pipe';
 import { TelemetryCollector } from '../../../core/telemetry/telemetry-collector.service';
+import { CalibrationPart, calibrationLayout } from './calibration';
 import { CodeEditor } from './code-editor';
 import { CodeSaver } from './code-saver';
 import { ConfirmDialog } from './confirm-dialog';
+import { ReferenceViewer } from './reference-viewer';
 import { ResultsPanel } from './results-panel';
 import { SessionTimer } from './session-timer';
 import { TelemetryDebugPanel } from './telemetry-debug';
@@ -56,7 +59,7 @@ interface Confirmation {
  */
 @Component({
   selector: 'app-session-page',
-  imports: [CodeEditor, ConfirmDialog, MarkdownPipe, ResultsPanel, SessionTimer, TelemetryDebugPanel],
+  imports: [CodeEditor, ConfirmDialog, MarkdownPipe, ReferenceViewer, ResultsPanel, SessionTimer, TelemetryDebugPanel],
   // telemetry exists only on this page, which opens after the consent (see consentGuard)
   providers: [TelemetryCollector],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -77,6 +80,7 @@ export class SessionPage implements OnInit {
   private readonly tasks = signal<Record<string, TaskView>>({});
   protected readonly activePath = signal<string | null>(null);
   private readonly runs = signal<Record<string, RunView | null>>({});
+  private readonly retypings = signal<Record<string, RetypingResult>>({});
   protected readonly running = signal(false);
   protected readonly timeOver = signal(false);
   protected readonly notice = signal<string | null>(null);
@@ -108,6 +112,32 @@ export class SessionPage implements OnInit {
     () => !!this.session() && this.session()!.tasks.every((t) => t.status === 'SUBMITTED'),
   );
   protected readonly hasUnsaved = computed(() => this.saver.dirty().size > 0);
+
+  /** The warm-up is shown in two parts: retyping on a split screen, then a short task. */
+  protected readonly calibration = computed(() => calibrationLayout(this.task()));
+  /** The part of each warm-up task the candidate is on; kept while the page is open. */
+  private readonly calibrationParts = signal<Record<string, CalibrationPart>>({});
+  protected readonly calibrationPart = computed<CalibrationPart>(() => {
+    const id = this.currentTaskId();
+    return (id && this.calibrationParts()[id]) || 1;
+  });
+  protected readonly split = computed(() => !!this.calibration() && this.calibrationPart() === 1);
+  protected readonly retyping = computed(() => {
+    const id = this.currentTaskId();
+    return id ? (this.retypings()[id] ?? null) : null;
+  });
+  protected readonly statement = computed(() => {
+    const layout = this.calibration();
+    return layout ? layout.statement[this.calibrationPart()] : (this.task()?.statementMd ?? '');
+  });
+  protected readonly visibleFiles = computed(() => {
+    const layout = this.calibration();
+    if (!layout) {
+      return this.task()?.files ?? [];
+    }
+    // part 1: the sample is always shown on top, the list holds only the file typed into
+    return this.calibrationPart() === 1 ? [layout.typing] : layout.others;
+  });
 
   constructor() {
     effect(() => {
@@ -168,6 +198,27 @@ export class SessionPage implements OnInit {
     }
   }
 
+  /** Switches the warm-up between part 1 (retyping) and part 2 (the short task). */
+  protected selectPart(part: CalibrationPart): void {
+    const layout = this.calibration();
+    if (!layout) {
+      return;
+    }
+    const id = this.currentTaskId()!;
+    this.calibrationParts.update((parts) => ({ ...parts, [id]: part }));
+    this.showCalibrationPart(layout, part);
+    // straight to typing: the part switch is a step of the warm-up, not a setting
+    this.editor()?.focus();
+  }
+
+  private showCalibrationPart(layout: NonNullable<ReturnType<typeof calibrationLayout>>, part: CalibrationPart): void {
+    const target = part === 1 ? layout.typing
+        : (layout.others.find((f) => f.kind === 'STARTER' && f.editable) ?? layout.others[0]);
+    if (target) {
+      this.activePath.set(target.path);
+    }
+  }
+
   protected selectFile(path: string): void {
     this.activePath.set(path);
     this.editor()?.focus();
@@ -188,6 +239,12 @@ export class SessionPage implements OnInit {
     }
     this.telemetry.startTask(task);
     this.currentTaskId.set(id);
+    const layout = calibrationLayout(task);
+    if (layout) {
+      // the warm-up opens on the part the candidate left it on, part 1 the first time
+      this.showCalibrationPart(layout, this.calibrationParts()[id] ?? 1);
+      return;
+    }
     const editable = task.files.find((f) => f.kind === 'STARTER' && f.editable);
     this.activePath.set((editable ?? task.files[0])?.path ?? null);
   }
@@ -236,8 +293,42 @@ export class SessionPage implements OnInit {
 
   // --- run and submit ----------------------------------------------------------------------------------------------
 
+  /** "Run tests" (Ctrl+Enter); in warm-up part 1 it checks the retyping instead, nothing is run. */
   protected async runTests(): Promise<void> {
+    if (this.split()) {
+      await this.checkRetyping();
+      return;
+    }
     await this.start('RUN');
+  }
+
+  /** Warm-up part 1: the platform compares the retyping with the sample and looks for pastes in the telemetry. */
+  private async checkRetyping(): Promise<void> {
+    const task = this.task();
+    if (!task || this.closed() || this.running()) {
+      return;
+    }
+    const version = this.saver.version(task.id);
+    this.running.set(true);
+    this.notice.set(null);
+    try {
+      // pastes are found in the stored telemetry: send what is buffered first
+      await this.flushTelemetry();
+      const result = await firstValueFrom(this.api.retyping(task.id, this.editor()!.contents(task)));
+      this.saver.markSaved(task.id, version);
+      this.retypings.update((all) => ({ ...all, [task.id]: result }));
+    } catch (error) {
+      if (statusOf(error) === 401) {
+        await this.handleFatal(error);
+        return;
+      }
+      this.notice.set(messageOf(error));
+      if (statusOf(error) === 409) {
+        await this.syncSession();
+      }
+    } finally {
+      this.running.set(false);
+    }
   }
 
   protected askSubmit(): void {

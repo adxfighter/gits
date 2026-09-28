@@ -96,6 +96,10 @@ class ScoringApiTest extends CandidateSessionTest {
                 .filter(t -> t.get("id").asText().equals(calibration.toString())).findFirst().orElseThrow();
         assertThat(warmUp.get("indicators").get("burstMax").get("value").asDouble()).isEqualTo(4.0);
         assertThat(warmUp.get("indicators").get("trustReasons").get("explanation").asText()).contains("Разминка");
+        // part 1 was not retyped (Typing.txt stayed empty): the check says so, without affecting the trust level
+        JsonNode retyping = warmUp.get("indicators").get("retyping");
+        assertThat(retyping.get("value").get("passed").asBoolean()).isFalse();
+        assertThat(retyping.get("explanation").asText()).startsWith("Напечатанный текст отличается");
 
         // recomputing replaces the rows instead of adding new ones
         scoring.compute(sessionId);

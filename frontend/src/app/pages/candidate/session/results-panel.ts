@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import { RunView } from '../../../core/candidate/candidate.models';
+import { RetypingResult, RunView } from '../../../core/candidate/candidate.models';
 
 /** Result of the last run of the task: compiler output, tests with statuses, time. */
 @Component({
@@ -9,7 +9,20 @@ import { RunView } from '../../../core/candidate/candidate.models';
   template: `
     <div class="results" data-testid="results">
       @let current = run();
-      @if (!current) {
+      @if (retypingMode()) {
+        @if (retyping(); as check) {
+          <p
+            class="state"
+            [class.state--ok]="check.passed"
+            [class.state--bad]="!check.passed"
+            data-testid="results-state"
+          >
+            {{ check.message }}
+          </p>
+        } @else {
+          <p class="muted">Перепечатайте фрагмент и нажмите «Проверить перепечатку» (Ctrl+Enter). Код не запускается.</p>
+        }
+      } @else if (!current) {
         <p class="muted">Запустите тесты, чтобы увидеть результат (Ctrl+Enter).</p>
       } @else {
         @switch (current.status) {
@@ -74,6 +87,9 @@ import { RunView } from '../../../core/candidate/candidate.models';
 })
 export class ResultsPanel {
   readonly run = input<RunView | null>(null);
+  /** Warm-up part 1: the panel shows the retyping check instead of test runs. */
+  readonly retypingMode = input(false);
+  readonly retyping = input<RetypingResult | null>(null);
 
   protected readonly allPassed = computed(() => {
     const current = this.run();

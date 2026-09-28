@@ -11,7 +11,11 @@ export interface InsertMark {
   /** Characters inserted by this action (all changes of one editor event together). */
   length: number;
   file: string;
-  /** Pastes only: the text was found in the task, its statement or copied in the editor (docs/telemetry.md). */
+  /**
+   * Pastes only: not a paste from elsewhere. As the externalPastes indicator counts it (docs/indicators.md): the text
+   * was found in the task, its statement or copied in the editor, or it is shorter than 10 non-whitespace characters,
+   * or it was undone at once.
+   */
   own: boolean;
 }
 
@@ -56,7 +60,7 @@ export function buildTimeline(events: readonly ReplayEvent[], runs: readonly Rep
   const pastes = inserts(events, 'paste');
   const completions = inserts(events, 'completion');
   const away = awayIntervals(events);
-  const runMarks = runMarksOf(events, runs);
+  const runMarks = runMarksOf(events, runs, duration);
   const moments: Moment[] = [
     ...pastes.map((mark) => ({
       t: mark.t,
@@ -87,7 +91,7 @@ export function buildTimeline(events: readonly ReplayEvent[], runs: readonly Rep
     ...fileSwitches(events),
   ].sort((a, b) => a.t - b.t);
   return {
-    duration: Math.max(duration, ...runMarks.map((mark) => mark.t)),
+    duration,
     pastes,
     completions,
     away,
@@ -110,23 +114,48 @@ function isTyping(event: ReplayEvent): boolean {
   return event.type === 'edit' && event.source === 'typing' && !event.isUndo && !event.isRedo;
 }
 
+/** The shortest paste from elsewhere that is a suspicion (docs/telemetry.md, «Откуда вставка»). */
+export const FOREIGN_PASTE_MIN_CHARS = 10;
+
 /** Edits of one source grouped by editor event (the same t and file): one paste with several cursors is one mark. */
 function inserts(events: readonly ReplayEvent[], source: 'paste' | 'completion'): InsertMark[] {
-  const marks: InsertMark[] = [];
-  for (const event of events) {
+  const marks: (InsertMark & { foreignChars: number; index: number })[] = [];
+  events.forEach((event, index) => {
     if (event.type !== 'edit' || event.source !== source || !event.file) {
-      continue;
+      return;
     }
     const length = event.textLength ?? event.text?.length ?? 0;
+    const foreignChars = source === 'paste' && event.ownCode === false ? nonWhitespace(event.text ?? '') : 0;
     const last = marks[marks.length - 1];
     if (last && last.t === event.t && last.file === event.file) {
       last.length += length;
-      last.own = last.own && event.ownCode !== false;
+      last.foreignChars += foreignChars;
+      last.index = index;
     } else {
-      marks.push({ t: event.t, length, file: event.file, own: source === 'completion' || event.ownCode !== false });
+      marks.push({ t: event.t, length, file: event.file, own: true, foreignChars, index });
+    }
+  });
+  return marks
+    .filter((mark) => mark.length > 0)
+    .map(({ foreignChars, index, ...mark }) => ({
+      ...mark,
+      own: foreignChars < FOREIGN_PASTE_MIN_CHARS || undoneAtOnce(events, index),
+    }));
+}
+
+/** The next edit of the paste's file is its undo: nothing was done with the pasted text. */
+function undoneAtOnce(events: readonly ReplayEvent[], index: number): boolean {
+  const file = events[index].file;
+  for (let i = index + 1; i < events.length; i++) {
+    if (events[i].type === 'edit' && events[i].file === file) {
+      return events[i].isUndo === true;
     }
   }
-  return marks.filter((mark) => mark.length > 0);
+  return false;
+}
+
+function nonWhitespace(text: string): number {
+  return text.replace(/\s/g, '').length;
 }
 
 const ACTIVITY = new Set(['edit', 'cursor', 'select', 'paste', 'copy', 'run', 'submit', 'completion']);
@@ -162,27 +191,30 @@ export function awayIntervals(events: readonly ReplayEvent[]): AwayInterval[] {
   if (since !== null && events.length) {
     intervals.push({ from: since, to: events[events.length - 1].t });
   }
-  return intervals.filter((interval) => interval.to > interval.from);
+  return intervals;
 }
 
 /**
  * Runs on the timeline. The run and submit presses are in the telemetry, on the timeline's own clock; their results
- * are the runs of the server, in the same order. When the numbers differ (a press refused by the limit), the
- * server's time after the task was opened is used instead: close, but off after a page reload.
+ * are the runs of the server, in the same order: the n-th press is the n-th run of its mode. A run without a press —
+ * the submit the platform makes when the session ends, or a press lost with its telemetry — is placed by the server
+ * time after the task was opened, but never after the end of the recording: that time also counts the minutes the
+ * page was closed and the time spent on other tasks.
  */
-function runMarksOf(events: readonly ReplayEvent[], runs: readonly ReplayRun[]): RunMark[] {
+function runMarksOf(events: readonly ReplayEvent[], runs: readonly ReplayRun[], duration: number): RunMark[] {
   const marks: RunMark[] = [];
   for (const mode of ['RUN', 'SUBMIT'] as const) {
     const presses = events.filter((event) => event.type === (mode === 'RUN' ? 'run' : 'submit'));
-    const ofMode = runs.filter((run) => run.mode === mode);
-    const matched = presses.length === ofMode.length;
-    ofMode.forEach((run, index) => {
-      const t = matched ? presses[index].t : run.offsetMs;
-      if (t === null) {
-        return;
-      }
-      marks.push({ t, mode, passed: passed(run), label: runLabel(run) });
-    });
+    runs
+      .filter((run) => run.mode === mode)
+      .forEach((run, index) => {
+        const press = presses[index];
+        if (press) {
+          marks.push({ t: press.t, mode, passed: passed(run), label: runLabel(run, false) });
+        } else if (run.offsetMs !== null) {
+          marks.push({ t: Math.min(run.offsetMs, duration), mode, passed: passed(run), label: runLabel(run, true) });
+        }
+      });
   }
   return marks.sort((a, b) => a.t - b.t);
 }
@@ -195,8 +227,13 @@ function passed(run: ReplayRun): boolean | null {
     && run.testsPassed === run.testsTotal;
 }
 
-function runLabel(run: ReplayRun): string {
-  const what = run.mode === 'SUBMIT' ? 'Отправка решения' : 'Запуск тестов';
+function runLabel(run: ReplayRun, withoutPress: boolean): string {
+  const what =
+    run.mode === 'SUBMIT'
+      ? withoutPress
+        ? 'Отправлено при завершении сессии'
+        : 'Отправка решения'
+      : 'Запуск тестов';
   if (run.status === 'QUEUED' || run.status === 'RUNNING') {
     return `${what}: проверяется`;
   }

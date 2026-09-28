@@ -79,6 +79,12 @@ describe('SessionRecording', () => {
     expect(recording.frameAfter(4).activeFile).toBe('src/test/java/MainTest.java');
   });
 
+  it('gives a tab to a file edited outside the task files', () => {
+    const recording = new SessionRecording([file(MAIN, '')], [edit(10, 0, 0, 'x', { file: OTHER })]);
+    expect(recording.paths).toEqual([MAIN, OTHER]);
+    expect(recording.finalFiles()[OTHER]).toBe('x');
+  });
+
   it('counts an edit that does not fit the text and still shows the rest', () => {
     const recording = new SessionRecording([file(MAIN, 'abc')], [edit(10, 10, 2, 'x'), edit(20, 0, 0, '>')]);
     expect(recording.brokenEdits).toBe(1);

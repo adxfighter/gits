@@ -32,7 +32,7 @@ import { InsertMark, ReplayTimeline, SPEED_WINDOW_MS, clock } from '../../../cor
           [style.left.%]="percent(mark.t)"
           [style.width.px]="size(mark)"
           [style.height.px]="size(mark)"
-          [title]="(mark.own ? 'Вставка своего кода: ' : 'Вставка не из задачи: ') + mark.length + ' симв., ' + clock(mark.t)"
+          [title]="(mark.own ? 'Вставка своего кода или условия: ' : 'Вставка не из задачи: ') + mark.length + ' симв., ' + clock(mark.t)"
           data-testid="paste-mark"
         ></div>
       }
@@ -75,10 +75,12 @@ import { InsertMark, ReplayTimeline, SPEED_WINDOW_MS, clock } from '../../../cor
     </div>
     <p class="legend muted">
       <span><i class="legend__away"></i>уход со страницы</span>
-      <span><i class="legend__paste"></i>вставка своего кода</span>
+      <span><i class="legend__paste"></i>вставка своего кода или условия</span>
       <span><i class="legend__paste legend__paste--foreign"></i>вставка не из задачи</span>
       <span><i class="legend__run legend__run--ok"></i>тесты пройдены</span>
       <span><i class="legend__run legend__run--fail"></i>не пройдены</span>
+      <span><i class="legend__run legend__run--unknown"></i>проверяется или сбой</span>
+      <span><i class="legend__completion"></i>автодополнение</span>
       <span>⚑ отправка</span>
       <span><i class="legend__speed"></i>скорость набора за {{ window }} с</span>
     </p>
@@ -114,6 +116,8 @@ import { InsertMark, ReplayTimeline, SPEED_WINDOW_MS, clock } from '../../../cor
     .legend__paste--foreign { background: var(--danger); }
     .legend__run--ok { background: var(--ok); }
     .legend__run--fail { background: var(--danger); }
+    .legend__run--unknown { background: var(--text-muted); }
+    .legend__completion { width: 2px !important; background: var(--text-muted); }
     .legend__speed { height: 2px !important; background: var(--accent); vertical-align: 3px !important; }
   `,
 })

@@ -79,8 +79,11 @@ interface Loaded {
             </p>
           } @else if (matches() === false) {
             <p class="replay__check notice" data-testid="replay-check">
-              Запись неполная: восстановленный код отличается от итогового (например, страница перезагружалась до
-              автосохранения). Воспроизведение показывает ход работы приблизительно.
+              Восстановленный код отличается от итогового: например, страница перезагружалась до автосохранения или
+              время вышло раньше, чем код сохранился. Воспроизведение показывает ход работы приблизительно.
+              @if (l.recording.brokenEdits > 0) {
+                Изменений, не совпавших с текстом: {{ l.recording.brokenEdits }}.
+              }
             </p>
           }
         </header>
@@ -120,7 +123,7 @@ interface Loaded {
 
               <div class="player" data-testid="player">
                 <button class="btn btn--primary player__play" type="button" (click)="toggle()" data-testid="play">
-                  {{ playing() ? '❚❚ Пауза' : '▶ Пуск' }}
+                  <span aria-hidden="true">{{ playing() ? '❚❚' : '▶' }}</span> {{ playing() ? 'Пауза' : 'Пуск' }}
                 </button>
                 <span class="player__time" data-testid="replay-time">{{ clock(time()) }} / {{ clock(l.timeline.duration) }}</span>
                 <span class="player__speeds" role="group" aria-label="Скорость">
@@ -335,7 +338,7 @@ export class ReplayPage {
   protected readonly matches = computed(() => {
     const loaded = this.loaded();
     const finalCode = loaded?.task?.finalCode;
-    if (!loaded || !finalCode || loaded.recording.events.length === 0) {
+    if (!loaded || !finalCode || Object.keys(finalCode).length === 0 || loaded.recording.events.length === 0) {
       return null;
     }
     const files = loaded.recording.finalFiles();
@@ -459,9 +462,11 @@ export class ReplayPage {
     if (!loaded || !this.playing()) {
       return;
     }
-    const elapsed = Math.min(now - this.lastTick, 250);
+    // a frame may start before the click that started the playback: never a step back
+    const elapsed = Math.max(0, Math.min(now - this.lastTick, 250));
     this.lastTick = now;
-    this.time.set(nextTime(loaded.recording, this.time(), elapsed * this.speed(), this.skipPauses() ? this.skipSeconds() * 1000 : null, loaded.timeline.duration));
+    const skipMs = this.skipPauses() ? this.skipSeconds() * 1000 : null;
+    this.time.set(nextTime(loaded.recording, this.time(), elapsed * this.speed(), skipMs, loaded.timeline.duration));
     if (this.time() >= loaded.timeline.duration) {
       this.pause();
       return;

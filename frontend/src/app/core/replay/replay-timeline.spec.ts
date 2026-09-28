@@ -30,20 +30,23 @@ describe('replay timeline', () => {
       [
         typing(100),
         { ...typing(200, 'foo'), source: 'paste', ownCode: true },
-        { ...typing(300, 'bar'), source: 'paste', ownCode: false },
-        { ...typing(300, 'baz'), source: 'paste', ownCode: false },
+        { ...typing(300, 'bar = 1;\n'), source: 'paste', ownCode: false },
+        { ...typing(300, 'baz = 2;\n'), source: 'paste', ownCode: false },
+        // short: not a suspicion, as in the indicator
+        { ...typing(350, 'x1'), source: 'paste', ownCode: false },
         { ...typing(400, 'println'), source: 'completion' },
       ],
       [],
     );
     expect(timeline.pastes).toEqual([
       { t: 200, length: 3, file: MAIN, own: true },
-      { t: 300, length: 6, file: MAIN, own: false },
+      { t: 300, length: 18, file: MAIN, own: false },
+      { t: 350, length: 2, file: MAIN, own: true },
     ]);
     expect(timeline.completions).toEqual([{ t: 400, length: 7, file: MAIN, own: true }]);
     const moments = timeline.moments.map((moment) => [moment.kind, moment.alert]);
-    expect(moments).toEqual([['paste', false], ['paste', true], ['completion', false]]);
-    expect(timeline.moments[1].text).toBe('Вставка не из задачи: 6 симв.');
+    expect(moments).toEqual([['paste', false], ['paste', true], ['paste', false], ['completion', false]]);
+    expect(timeline.moments[1].text).toBe('Вставка не из задачи: 18 симв.');
   });
 
   it('shades the time away from the page: blur or hidden tab until focus and visible again, or any input', () => {
@@ -91,10 +94,27 @@ describe('replay timeline', () => {
     ]);
   });
 
-  it('falls back to the server time of a run when the presses do not match the runs', () => {
-    const timeline = buildTimeline([typing(100)], [run({ offsetMs: 4200 }), run({ offsetMs: null })]);
-    expect(timeline.runs.map((mark) => mark.t)).toEqual([4200]);
-    expect(timeline.duration).toBe(4200);
+  it('puts a submit without a press — the one at the end of the session — at the end of the recording', () => {
+    // the task was left after 10 s; the session ended 40 minutes later and submitted it
+    const timeline = buildTimeline(
+      [typing(100), { t: 2000, type: 'run' }, typing(10_000)],
+      [run({ offsetMs: 2100 }), run({ mode: 'SUBMIT', offsetMs: 2_400_000 }), run({ offsetMs: null })],
+    );
+    expect(timeline.duration).toBe(10_000);
+    expect(timeline.runs.map((mark) => [mark.t, mark.mode])).toEqual([[2000, 'RUN'], [10_000, 'SUBMIT']]);
+    expect(timeline.runs[1].label).toBe('Отправлено при завершении сессии: пройдено 3 из 3');
+  });
+
+  it('does not count a paste undone at once as a paste from elsewhere', () => {
+    const pasted = 'System.out.println(result);';
+    const timeline = buildTimeline(
+      [
+        { ...typing(100, pasted), source: 'paste', ownCode: false },
+        { t: 200, type: 'edit', file: MAIN, rangeOffset: 0, rangeLength: pasted.length, text: '', textLength: 0, source: 'other', isUndo: true },
+      ],
+      [],
+    );
+    expect(timeline.pastes[0].own).toBe(true);
   });
 
   it('measures typing speed over 5 seconds, without pastes and undo', () => {
@@ -118,7 +138,7 @@ describe('replay timeline', () => {
       typing(1000, 'ab'),
       { t: 2000, type: 'blur' },
       { t: 12_000, type: 'focus' },
-      { ...typing(13_000, 'pasted'), source: 'paste', ownCode: false },
+      { ...typing(13_000, 'pasted text'), source: 'paste', ownCode: false },
       { t: 14_000, type: 'run' },
       typing(20_000, 'c'),
     ];
@@ -129,7 +149,7 @@ describe('replay timeline', () => {
       typedChars: 3,
       pastes: 1,
       foreignPastes: 1,
-      pastedChars: 6,
+      pastedChars: 11,
       awayCount: 1,
       awaySeconds: 10,
       runs: 1,

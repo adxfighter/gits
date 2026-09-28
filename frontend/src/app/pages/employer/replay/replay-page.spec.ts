@@ -66,7 +66,7 @@ describe('ReplayPage', () => {
     { id: 'r1', mode: 'RUN', status: 'DONE', createdAt: '', finishedAt: '', offsetMs: 63_500, compiled: true, testsTotal: 2, testsPassed: 1 },
   ];
 
-  async function render(finalCode = 'class Transfers {}'): Promise<{ fixture: ComponentFixture<ReplayPage>; root: HTMLElement }> {
+  async function render(finalCode = 'class Transfers {} // copied here'): Promise<{ fixture: ComponentFixture<ReplayPage>; root: HTMLElement }> {
     const fixture = TestBed.createComponent(ReplayPage);
     fixture.componentRef.setInput('sessionTaskId', 'task-2');
     fixture.detectChanges();
@@ -84,7 +84,7 @@ describe('ReplayPage', () => {
     );
     http.expectOne(`${URL}?fromSeq=1&limit=200`).flush(
       // runs come on every page
-      page({ events: [edit(90_000, 17, '}', { seq: 1, source: 'paste', ownCode: false })], runs, fromSeq: 1 }),
+      page({ events: [edit(90_000, 17, '} // copied here', { seq: 1, source: 'paste', ownCode: false })], runs, fromSeq: 1 }),
     );
     http.expectOne('/api/employer/sessions/session-1/report').flush(
       sessionReport({ tasks: [taskReport({ finalCode: { [MAIN]: finalCode } })] }),
@@ -108,7 +108,7 @@ describe('ReplayPage', () => {
     expect(moments).toEqual([
       '0:02↗ Уход со страницы на 1 мин 0 с',
       '1:03▶ Запуск тестов: пройдено 1 из 2',
-      '1:30⎘ Вставка не из задачи: 1 симв.',
+      '1:30⎘ Вставка не из задачи: 16 симв.',
     ]);
     expect(root.querySelectorAll('[data-testid="paste-mark"]')).toHaveLength(1);
     expect(root.querySelector('[data-testid="run-mark"]')?.className).toContain('tl__run--fail');
@@ -117,7 +117,7 @@ describe('ReplayPage', () => {
 
   it('warns when the rebuilt code differs from the final code', async () => {
     const { root } = await render('class Transfers { int x; }');
-    expect(text(root.querySelector('[data-testid="replay-check"]'))).toContain('Запись неполная');
+    expect(text(root.querySelector('[data-testid="replay-check"]'))).toContain('отличается от итогового');
   });
 
   it('moves to a moment from the event list and updates the figures', async () => {
@@ -132,7 +132,7 @@ describe('ReplayPage', () => {
     expect(figures).toEqual([
       'Набрано вручную: 1 симв.',
       'Скорость набора: 0,0 симв./с',
-      'Вставки: 1 (1 симв.) · не из задачи: 1',
+      'Вставки: 1 (16 симв.) · не из задачи: 1',
       'Уходы со страницы: 1, 1 мин 0 с',
       'Запуски тестов: 1',
     ]);
@@ -175,6 +175,25 @@ describe('ReplayPage', () => {
     root.querySelector<HTMLButtonElement>('[data-testid="replay-follow"]')!.click();
     fixture.detectChanges();
     expect(tabs[0].getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('stops asking for frames when paused, and a second press does not start a second loop', async () => {
+    const { fixture, root } = await render();
+    const play = root.querySelector<HTMLButtonElement>('[data-testid="play"]')!;
+    play.click();
+    expect(frames).toHaveLength(1);
+    play.click(); // pause
+    expect(frames).toHaveLength(0);
+    play.click();
+    play.click();
+    play.click();
+    expect(frames).toHaveLength(1);
+    // the first frame may start before the click: the time never goes back
+    frames.shift()!(performance.now() - 16);
+    fixture.detectChanges();
+    expect(text(root.querySelector('[data-testid="replay-time"]'))).toBe('0:00 / 1:30');
+    fixture.destroy();
+    expect(frames).toHaveLength(0);
   });
 
   it('says so when a task has no recording', async () => {

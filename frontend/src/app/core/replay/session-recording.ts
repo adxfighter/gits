@@ -40,7 +40,16 @@ export class SessionRecording {
     });
     this.duration = time;
     const ordered = [...initialFiles].sort((a, b) => Number(b.editable) - Number(a.editable));
-    this.paths = ordered.map((file) => file.path);
+    // a file the candidate edited that is not among the task files still gets a tab
+    const known = new Set(ordered.map((file) => file.path));
+    const extra = [
+      ...new Set(
+        this.events
+          .filter((event) => event.type === 'edit' && event.file !== undefined && !known.has(event.file))
+          .map((event) => event.file!),
+      ),
+    ];
+    this.paths = [...ordered.map((file) => file.path), ...extra];
 
     const files: Record<string, string> = {};
     ordered.forEach((file) => (files[file.path] = file.content));

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink } from '@angular/router';
 
 import { ApiHealthService, ApiStatus } from '../../core/api-health.service';
 
@@ -11,11 +12,16 @@ const STATUS_LABELS: Record<ApiStatus, string> = {
 
 @Component({
   selector: 'app-home-page',
+  imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="home">
       <h1>GITS v1.0</h1>
       <p>Локальная демо-версия платформы оценки Java-разработчиков.</p>
+      <p>
+        <a class="btn btn--primary" routerLink="/employer" data-testid="employer-entry">Кабинет работодателя</a>
+      </p>
+      <p class="muted">Кандидат приходит по своей ссылке-приглашению.</p>
       <p class="status" data-testid="api-status">
         Сервер API:
         @if (status(); as current) {

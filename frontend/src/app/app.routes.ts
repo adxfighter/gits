@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 
+import { employerGuard } from './core/auth/employer.guard';
 import { candidateGuard, consentGuard } from './core/candidate/consent.guard';
 
 export const routes: Routes = [
@@ -7,6 +8,29 @@ export const routes: Routes = [
     path: '',
     loadComponent: () => import('./pages/home/home-page').then((m) => m.HomePage),
     title: 'GITS',
+  },
+  {
+    path: 'login',
+    loadComponent: () => import('./pages/login/login-page').then((m) => m.LoginPage),
+    title: 'Вход — GITS',
+  },
+  {
+    path: 'employer',
+    canActivate: [employerGuard],
+    loadComponent: () => import('./pages/employer/invites-page').then((m) => m.InvitesPage),
+    title: 'Приглашения — GITS',
+  },
+  {
+    path: 'employer/sessions/:id',
+    canActivate: [employerGuard],
+    loadComponent: () => import('./pages/employer/report-page').then((m) => m.ReportPage),
+    title: 'Отчёт — GITS',
+  },
+  {
+    path: 'employer/replay/:sessionTaskId',
+    canActivate: [employerGuard],
+    loadComponent: () => import('./pages/employer/replay-page').then((m) => m.ReplayPage),
+    title: 'Воспроизведение — GITS',
   },
   {
     path: 'c/consent',

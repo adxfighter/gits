@@ -27,6 +27,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import ru.gits.api.security.CandidateCookieFilter;
 import ru.gits.api.security.CandidateCookieService;
 import ru.gits.api.security.SpaCsrfTokenRequestHandler;
+import ru.gits.api.telemetry.TelemetryBeaconRequest;
 import ru.gits.core.invite.InviteRepository;
 
 /**
@@ -67,7 +68,10 @@ public class SecurityConfig {
                                        CookieCsrfTokenRepository csrf, InviteRepository invites) throws Exception {
         http.securityMatcher("/candidate/**")
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .csrf(c -> c.csrfTokenRepository(csrf).csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
+                .csrf(c -> c.csrfTokenRepository(csrf).csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
+                        // sendBeacon cannot send the CSRF header: these telemetry batches are authorized by the
+                        // task's one-time beacon token instead, checked in TelemetryService
+                        .ignoringRequestMatchers(new TelemetryBeaconRequest()))
                 .addFilterBefore(new CandidateCookieFilter(cookies, invites), BasicAuthenticationFilter.class)
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(HttpMethod.POST, "/candidate/enter").permitAll()

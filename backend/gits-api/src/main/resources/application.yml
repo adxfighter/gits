@@ -67,3 +67,6 @@ gits:
     max-code-bytes: 262144
     recent-sessions: 3
     expiry-check: 30s
+  telemetry:
+    max-events: 2000
+    max-batch-bytes: 262144

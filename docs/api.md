@@ -23,11 +23,12 @@
 | `GET /candidate/consent`, `POST /candidate/consent` | текст согласия и его принятие |
 | `POST /candidate/session/start` | начать сессию: калибровочный блок и 3 задачи из разных шаблонов под уровень приглашения; повторный вызов возвращает ту же сессию |
 | `GET /candidate/session` | состояние: задания (порядок, статус, лимиты), `deadline` и `remainingSeconds` по серверным часам |
-| `GET /candidate/tasks/{id}` | условие, файлы STARTER/READONLY/VISIBLE_TEST и текущий снимок кода; первое открытие начинает задание |
+| `GET /candidate/tasks/{id}` | условие, файлы STARTER/READONLY/VISIBLE_TEST и текущий снимок кода; первое открытие начинает задание; `beaconToken` — одноразовый токен для sendBeacon |
 | `PUT /candidate/tasks/{id}/code` | автосохранение `{"files": {путь: содержимое}}` — только редактируемые файлы |
 | `POST /candidate/tasks/{id}/run` | запуск на видимых тестах (тело `{"files": …}` необязательно — иначе берётся сохранённый снимок); ответ 202 с `runId` |
 | `POST /candidate/tasks/{id}/submit` | отправка на проверку скрытыми тестами; после неё задание закрыто для правок |
 | `GET /candidate/runs/{runId}` | статус и результат запуска |
+| `POST /candidate/tasks/{id}/telemetry` | пакет телеметрии ввода (JSON или text/plain от sendBeacon), см. [telemetry.md](telemetry.md); чужое задание здесь — 403 (по P08), в остальных путях — 404 |
 | `POST /candidate/session/finish` | завершить сессию |
 
 ### Правила сессии

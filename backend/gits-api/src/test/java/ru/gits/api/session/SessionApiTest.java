@@ -47,7 +47,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import jakarta.servlet.http.Cookie;
 
-import ru.gits.api.support.ApiTest;
+import ru.gits.api.support.CandidateSessionTest;
 import ru.gits.core.invite.InviteRepository;
 import ru.gits.core.invite.InviteStatus;
 import ru.gits.core.run.RunJob;
@@ -70,90 +70,12 @@ import ru.gits.taskbank.ReportFiles;
 import ru.gits.taskbank.ValidationReport;
 import ru.gits.taskbank.VariantSources;
 import ru.gits.taskbank.load.TaskBankLoader;
-
 /**
  * P07 acceptance: the whole candidate path on a bank built from copies of T00-example at the needed levels plus the
  * calibration block, time expiry, run limits and the security of task and SUBMIT responses. The runner is not
  * part of the api: tests finish jobs themselves, the way the runner writes run_result.
  */
-@Import(SessionApiTest.ClockConfig.class)
-class SessionApiTest extends ApiTest {
-
-    private static final Path REPO_TASKS = Path.of("../../tasks");
-    private static final Instant START = Instant.parse("2026-09-01T09:00:00Z");
-    private static volatile boolean bankLoaded;
-
-    /** Clock the test moves by hand; replaces the system clock for the whole context of this class. */
-    static final class MutableClock extends Clock {
-        private final AtomicReference<Instant> now = new AtomicReference<>(START);
-
-        void set(Instant instant) {
-            now.set(instant);
-        }
-
-        void advance(Duration duration) {
-            now.updateAndGet(instant -> instant.plus(duration));
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return now.get();
-        }
-    }
-
-    @TestConfiguration(proxyBeanMethods = false)
-    static class ClockConfig {
-        @Bean
-        @Primary
-        MutableClock testClock() {
-            return new MutableClock();
-        }
-    }
-
-    @Autowired MutableClock clock;
-    @Autowired SessionService sessionService;
-    @Autowired TaskTemplateRepository templates;
-    @Autowired TaskVariantRepository variants;
-    @Autowired TaskFileRepository taskFiles;
-    @Autowired SessionTaskRepository sessionTasks;
-    @Autowired AssessmentSessionRepository sessions;
-    @Autowired RunJobRepository runs;
-    @Autowired RunResultRepository results;
-    @Autowired InviteRepository invites;
-    @Autowired PlatformTransactionManager transactionManager;
-
-    @BeforeEach
-    void loadBankOnce() throws IOException {
-        clock.set(START);
-        if (bankLoaded) {
-            return;
-        }
-        Path tasks = Files.createTempDirectory("gits-session-bank").resolve("tasks");
-        copyTree(REPO_TASKS.resolve("schema"), tasks.resolve("schema"));
-        copyTree(REPO_TASKS.resolve("java/CAL-calibration"), tasks.resolve("java/CAL-calibration"));
-        // Levels that allow both MIDDLE compositions: junior+middle+senior and middle x3
-        copyExample(tasks, "T01", "junior");
-        copyExample(tasks, "T02", "middle");
-        copyExample(tasks, "T03", "senior");
-        copyExample(tasks, "T04", "middle");
-        copyExample(tasks, "T05", "middle");
-        var summary = new TaskBankLoader(templates, variants, transactionManager, Clock.systemUTC(), Set.of())
-                .load(tasks.resolve("java"));
-        assertThat(summary.loaded()).as(summary.warnings().toString()).isEqualTo(8);
-        bankLoaded = true;
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------
+class SessionApiTest extends CandidateSessionTest {
 
     @Test
     void candidatePassesTheWholeSession() throws Exception {
@@ -474,149 +396,4 @@ class SessionApiTest extends ApiTest {
         mvc.perform(post("/candidate/session/start").cookie(noConsent).with(csrf())).andExpect(status().isForbidden());
     }
 
-    // ---------------------------------------------------------------------------------------------------------------
-
-    /** Candidate who entered through an invite link and accepted consent. */
-    private Candidate newCandidate() throws Exception {
-        return newCandidate(login(accounts.employer()));
-    }
-
-    /** Candidate invited by the given employer, i.e. of the employer's company. */
-    private Candidate newCandidate(MockHttpSession employer) throws Exception {
-        String token = createInviteToken(employer);
-        Cookie cookie = candidateCookie(mvc.perform(post("/candidate/enter").with(csrf()).with(client())
-                .contentType(MediaType.APPLICATION_JSON).content(body("token", token))).andReturn().getResponse());
-        MockHttpServletResponse consent = mvc.perform(post("/candidate/consent").cookie(cookie).with(csrf()))
-                .andExpect(status().isNoContent()).andReturn().getResponse();
-        return new Candidate(candidateCookie(consent));
-    }
-
-    private final class Candidate {
-        private final Cookie cookie;
-
-        Candidate(Cookie cookie) {
-            this.cookie = cookie;
-        }
-
-        ResultActions get(String path) throws Exception {
-            return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path)
-                    .cookie(cookie));
-        }
-
-        ResultActions post(String path) throws Exception {
-            return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(path)
-                    .cookie(cookie).with(csrf()));
-        }
-
-        ResultActions put(String path, Map<String, String> files) throws Exception {
-            return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(path)
-                    .cookie(cookie).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-                    .content(json.writeValueAsString(Map.of("files", files))));
-        }
-    }
-
-    private Set<String> variantCodes(UUID sessionId) {
-        return new TransactionTemplate(transactionManager).execute(status ->
-                sessionTasks.findBySessionIdOrderByOrderNo(sessionId).stream()
-                        .map(task -> task.getVariant().getCode()).collect(Collectors.toSet()));
-    }
-
-    /** Sends the same request from two threads at once. */
-    private static List<MockHttpServletResponse> concurrently(Callable<MockHttpServletResponse> request)
-            throws Exception {
-        ExecutorService pool = Executors.newFixedThreadPool(2);
-        CyclicBarrier barrier = new CyclicBarrier(2);
-        try {
-            List<Future<MockHttpServletResponse>> futures = new ArrayList<>();
-            for (int i = 0; i < 2; i++) {
-                futures.add(pool.submit(() -> {
-                    barrier.await();
-                    return request.call();
-                }));
-            }
-            List<MockHttpServletResponse> responses = new ArrayList<>();
-            for (Future<MockHttpServletResponse> future : futures) {
-                responses.add(future.get(60, TimeUnit.SECONDS));
-            }
-            return responses;
-        } finally {
-            pool.shutdownNow();
-        }
-    }
-
-    private InviteStatus inviteStatus(UUID sessionId) {
-        return new TransactionTemplate(transactionManager).execute(status ->
-                sessions.findById(sessionId).orElseThrow().getInvite().getStatus());
-    }
-
-    /** Does what the runner does when a job is finished. */
-    private void complete(UUID runId, int total, int passed, String cases) {
-        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            RunJob job = runs.findById(runId).orElseThrow();
-            job.markRunning("test-runner", clock.instant());
-            job.finish(RunStatus.DONE, clock.instant());
-            results.save(new RunResult(job, true, null, total, passed, cases, 120L, "secret-stdout", null,
-                    clock.instant()));
-        });
-    }
-
-    private static String visibleCases() {
-        return """
-                [{"name":"GradeStatisticsVisibleTest › passes","status":"PASSED","message":null,"hidden":false},
-                 {"name":"GradeStatisticsVisibleTest › fails","status":"FAILED","message":"expected: <1>","hidden":false}]
-                """;
-    }
-
-    private static String hiddenCases() {
-        return """
-                [{"name":"GradeStatisticsVisibleTest › passes","status":"PASSED","message":null,"hidden":false},
-                 {"name":"Скрытый тест 1","status":"PASSED","message":null,"hidden":true},
-                 {"name":"Скрытый тест 2","status":"FAILED","message":"expected: <5>","hidden":true}]
-                """;
-    }
-
-    private static List<JsonNode> list(JsonNode array) {
-        List<JsonNode> items = new ArrayList<>();
-        array.forEach(items::add);
-        return items;
-    }
-
-    private static UUID id(JsonNode node) {
-        return id(node, "id");
-    }
-
-    private static UUID id(JsonNode node, String field) {
-        return UUID.fromString(node.get(field).asText());
-    }
-
-    /** Copy of T00-example registered as template {@code code} with the given level, re-hashed like validate. */
-    private static void copyExample(Path tasks, String code, String level) throws IOException {
-        Path template = tasks.resolve("java/" + code + "-sample");
-        copyTree(REPO_TASKS.resolve("java/T00-example"), template);
-        Path templateYaml = template.resolve("template.yaml");
-        Files.writeString(templateYaml, Files.readString(templateYaml).replace("code: T00", "code: " + code));
-        Path variant = template.resolve("variants/v01");
-        Path taskYaml = variant.resolve("task.yaml");
-        Files.writeString(taskYaml, Files.readString(taskYaml)
-                .replace("code: T00-v01", "code: " + code + "-v01")
-                .replace("template: T00", "template: " + code)
-                .replace("level: junior", "level: " + level));
-        ValidationReport old = ReportFiles.read(variant).orElseThrow();
-        String hash = ContentHash.of(VariantSources.read(variant).allFiles());
-        ReportFiles.write(variant, new ValidationReport(code + "-v01", old.status(), hash, old.validatedAt(),
-                old.validatorVersion(), old.runs(), old.checks()));
-    }
-
-    private static void copyTree(Path source, Path target) throws IOException {
-        try (Stream<Path> paths = Files.walk(source)) {
-            for (Path path : paths.toList()) {
-                Path destination = target.resolve(source.relativize(path).toString());
-                if (Files.isDirectory(path)) {
-                    Files.createDirectories(destination);
-                } else {
-                    Files.copy(path, destination);
-                }
-            }
-        }
-    }
 }

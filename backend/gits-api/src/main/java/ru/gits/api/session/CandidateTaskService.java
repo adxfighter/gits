@@ -18,6 +18,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import ru.gits.api.telemetry.BeaconTokens;
 import ru.gits.core.invite.InviteRepository;
 import ru.gits.core.run.RunJob;
 import ru.gits.core.run.RunJobRepository;
@@ -52,7 +53,7 @@ public class CandidateTaskService {
 
     public record TaskView(UUID id, int orderNo, TaskKind kind, String title, SessionTaskStatus status,
                            String statementMd, int timeLimitMin, List<FileView> files, Map<String, String> code,
-                           Instant codeSavedAt, long runsUsed, int runsLimit) {
+                           Instant codeSavedAt, long runsUsed, int runsLimit, String beaconToken) {
     }
 
     public record RunAccepted(UUID runId, RunMode mode, RunStatus status) {
@@ -93,13 +94,20 @@ public class CandidateTaskService {
         this.clock = clock;
     }
 
-    /** The task with its visible files and current code; opening it starts the task. */
+    /**
+     * The task with its visible files and current code; opening it starts the task. While the task is in progress
+     * the view carries a fresh one-time token for a sendBeacon telemetry batch (docs/telemetry.md).
+     */
     @Transactional
     public TaskView task(UUID inviteId, UUID sessionTaskId) {
         lock(inviteId);
         SessionTask task = ownTask(inviteId, sessionTaskId);
+        String beaconToken = null;
         if (isOpen(task.getSession())) {
             task.start(clock.instant());
+            if (task.getStatus() == SessionTaskStatus.IN_PROGRESS) {
+                beaconToken = BeaconTokens.issue(task);
+            }
         }
         List<TaskFile> taskFiles = candidateFiles(task);
         List<FileView> fileViews = taskFiles.stream()
@@ -108,7 +116,7 @@ public class CandidateTaskService {
         return new TaskView(task.getId(), task.getOrderNo(), task.getKind(), TaskCode.title(task.getVariant()),
                 task.getStatus(), task.getVariant().getStatementMd(), task.getVariant().getTimeLimitMin(), fileViews,
                 TaskCode.current(task.getCurrentCode(), taskFiles), task.getCodeSavedAt(),
-                runs.countBySessionTaskIdAndMode(task.getId(), RunMode.RUN), properties.runsPerTask());
+                runs.countBySessionTaskIdAndMode(task.getId(), RunMode.RUN), properties.runsPerTask(), beaconToken);
     }
 
     /** Autosave of the editable files: at most once per {@code autosave-interval}, up to {@code max-code-bytes}. */

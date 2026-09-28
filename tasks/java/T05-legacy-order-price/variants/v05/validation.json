@@ -2,13 +2,14 @@
   "code" : "T05-v05",
   "status" : "PASSED",
   "content_hash" : "34d97c3f475285bc98cf62966a56089d450825127b2f5b8dedec5733ffb65b73",
-  "validated_at" : "2026-09-27T19:18:19.487391300Z",
-  "validator_version" : 1,
+  "validated_at" : "2026-09-28T16:10:58.143380500Z",
+  "validator_version" : 2,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 3,
-    "reference_max_ms" : 5490
+    "reference_max_ms" : 5406,
+    "starter_passing_hidden" : [ "0ac10eab92086867", "0dc374ec5d45e241", "149c4e21542d09f8", "4455d73dcc47f9d7", "53a04d5baab8d1e1", "60ebe2bc03079074", "6a840fbd8c523fed", "6daa26069cdac7c7", "7935298a33717812", "7b096a7aaa7fc28b", "af88089aabd75f3a", "b6433d1ec3bc4ea2", "b8d9f58f608ff568", "c013c765f438db35", "cba406f0b026ff54", "d979313d2f9fe1db", "f5283e4eab8bf8d4" ]
   },
   "checks" : [ {
     "id" : "schema",
@@ -41,11 +42,11 @@
   }, {
     "id" : "starter_fails",
     "passed" : true,
-    "details" : "starter провалил скрытые тесты в 3 из 3 прогонов (нужно не менее 3)"
+    "details" : "starter провалил скрытые тесты в 3 из 3 прогонов (нужно не менее 3); исправить нужно 9 из 26 скрытых проверок, остальные 17 проверяют, что ничего не сломано"
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 5490 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 5406 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,

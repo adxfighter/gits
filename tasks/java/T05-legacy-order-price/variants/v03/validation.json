@@ -2,13 +2,14 @@
   "code" : "T05-v03",
   "status" : "PASSED",
   "content_hash" : "f3a0a3ef062275e3fea99a4d929972f2908132264b49b465421073bf03c22508",
-  "validated_at" : "2026-09-27T18:38:20.571248900Z",
-  "validator_version" : 1,
+  "validated_at" : "2026-09-28T16:10:34.090397200Z",
+  "validator_version" : 2,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 3,
-    "reference_max_ms" : 9600
+    "reference_max_ms" : 7605,
+    "starter_passing_hidden" : [ "00a8d5522222eb3c", "104cdee698cf8eb1", "112e50495a5e1196", "1395a1bf8f345fa5", "1fb13928cf89bf1a", "231636567547fb1c", "6dc749d5c0fcdb40", "8fa7ab02cd064bee", "91eafe3260d801f0", "a9890afa8639143c", "cd0b66539d8fc5b3", "cd89977b0386ac53", "e95061a9b0ec5cee", "f3bbfe114236b6f6", "f4a01eac8941d9e6" ]
   },
   "checks" : [ {
     "id" : "schema",
@@ -41,11 +42,11 @@
   }, {
     "id" : "starter_fails",
     "passed" : true,
-    "details" : "starter провалил скрытые тесты в 3 из 3 прогонов (нужно не менее 3)"
+    "details" : "starter провалил скрытые тесты в 3 из 3 прогонов (нужно не менее 3); исправить нужно 3 из 18 скрытых проверок, остальные 15 проверяют, что ничего не сломано"
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 9600 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 7605 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,

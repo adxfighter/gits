@@ -56,6 +56,22 @@ class TelemetryApiTest extends CandidateSessionTest {
     }
 
     @Test
+    void reopenedTaskTellsWhereTheTelemetryContinues() throws Exception {
+        OpenTask task = openTask();
+        JsonNode fresh = read(task.candidate().get("/candidate/tasks/" + task.id()).andReturn().getResponse());
+        assertThat(fresh.get("telemetryNextSeq").asInt()).isZero();
+        assertThat(fresh.get("telemetryLastT").asDouble()).isZero();
+
+        send(task, batch(0, 0, 900.5, List.of(Map.of("t", 900.5, "type", "blur")))).andExpect(status().isOk());
+        send(task, batch(1, 1000, 1850.25, List.of(Map.of("t", 1850.25, "type", "focus")))).andExpect(status().isOk());
+
+        // e.g. after a page reload
+        JsonNode reopened = read(task.candidate().get("/candidate/tasks/" + task.id()).andReturn().getResponse());
+        assertThat(reopened.get("telemetryNextSeq").asInt()).isEqualTo(2);
+        assertThat(reopened.get("telemetryLastT").asDouble()).isEqualTo(1850.25);
+    }
+
+    @Test
     void batchLimits() throws Exception {
         OpenTask task = openTask();
         List<Map<String, Object>> tooMany = new ArrayList<>();

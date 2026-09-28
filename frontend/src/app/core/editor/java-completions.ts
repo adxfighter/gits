@@ -1,5 +1,8 @@
 import type * as Monaco from 'monaco-editor';
 
+/** Run by Monaco right after an item of this provider is inserted; the telemetry records the accepted completion. */
+export const COMPLETION_ACCEPTED_COMMAND = 'gits.completionAccepted';
+
 const KEYWORDS = [
   'abstract', 'assert', 'boolean', 'break', 'byte', 'case', 'catch', 'char', 'class', 'continue', 'default',
   'do', 'double', 'else', 'enum', 'extends', 'final', 'finally', 'float', 'for', 'if', 'implements', 'import',
@@ -57,6 +60,7 @@ export function registerJavaCompletions(monaco: typeof Monaco, noSuggestions: (m
         endColumn: word.endColumn,
       };
       const kinds = monaco.languages.CompletionItemKind;
+      const command = { id: COMPLETION_ACCEPTED_COMMAND, title: '' };
       return {
         suggestions: [
           ...KEYWORDS.map((keyword) => ({
@@ -64,8 +68,9 @@ export function registerJavaCompletions(monaco: typeof Monaco, noSuggestions: (m
             kind: kinds.Keyword,
             insertText: keyword,
             range,
+            command,
           })),
-          ...TYPES.map((type) => ({ label: type, kind: kinds.Class, insertText: type, range })),
+          ...TYPES.map((type) => ({ label: type, kind: kinds.Class, insertText: type, range, command })),
           ...SNIPPETS.map((snippet) => ({
             label: snippet.label,
             kind: kinds.Snippet,
@@ -73,6 +78,7 @@ export function registerJavaCompletions(monaco: typeof Monaco, noSuggestions: (m
             insertText: snippet.body,
             insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
             range,
+            command,
           })),
         ],
       };

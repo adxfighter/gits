@@ -16,6 +16,9 @@ public interface TelemetryBatchRepository extends JpaRepository<TelemetryBatch, 
     /** The batch just before {@code seq} (batches may arrive out of order). */
     Optional<TelemetryBatch> findFirstBySessionTaskIdAndSeqLessThanOrderBySeqDesc(UUID sessionTaskId, int seq);
 
+    /** The last batch of the task: where a reloaded page continues seq and the time scale. */
+    Optional<TelemetryBatch> findFirstBySessionTaskIdOrderBySeqDesc(UUID sessionTaskId);
+
     /** The batch just after {@code seq}. */
     Optional<TelemetryBatch> findFirstBySessionTaskIdAndSeqGreaterThanOrderBySeqAsc(UUID sessionTaskId, int seq);
 

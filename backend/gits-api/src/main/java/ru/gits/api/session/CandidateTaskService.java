@@ -35,6 +35,8 @@ import ru.gits.core.task.FileKind;
 import ru.gits.core.task.TaskFile;
 import ru.gits.core.task.TaskFileRepository;
 import ru.gits.core.task.TaskKind;
+import ru.gits.core.telemetry.TelemetryBatch;
+import ru.gits.core.telemetry.TelemetryBatchRepository;
 
 /**
  * A candidate's work on one task: the task view, code snapshots, RUN and SUBMIT. Only STARTER, READONLY and
@@ -53,7 +55,8 @@ public class CandidateTaskService {
 
     public record TaskView(UUID id, int orderNo, TaskKind kind, String title, SessionTaskStatus status,
                            String statementMd, int timeLimitMin, List<FileView> files, Map<String, String> code,
-                           Instant codeSavedAt, long runsUsed, int runsLimit, String beaconToken) {
+                           Instant codeSavedAt, long runsUsed, int runsLimit, String beaconToken,
+                           int telemetryNextSeq, double telemetryLastT) {
     }
 
     public record RunAccepted(UUID runId, RunMode mode, RunStatus status) {
@@ -76,6 +79,7 @@ public class CandidateTaskService {
     }
 
     private final InviteRepository invites;
+    private final TelemetryBatchRepository batches;
     private final SessionTaskRepository sessionTasks;
     private final TaskFileRepository files;
     private final RunJobRepository runs;
@@ -83,9 +87,11 @@ public class CandidateTaskService {
     private final SessionProperties properties;
     private final Clock clock;
 
-    public CandidateTaskService(InviteRepository invites, SessionTaskRepository sessionTasks, TaskFileRepository files, RunJobRepository runs,
+    public CandidateTaskService(InviteRepository invites, TelemetryBatchRepository batches,
+                                SessionTaskRepository sessionTasks, TaskFileRepository files, RunJobRepository runs,
                                 RunResultRepository results, SessionProperties properties, Clock clock) {
         this.invites = invites;
+        this.batches = batches;
         this.sessionTasks = sessionTasks;
         this.files = files;
         this.runs = runs;
@@ -102,6 +108,8 @@ public class CandidateTaskService {
     public TaskView task(UUID inviteId, UUID sessionTaskId) {
         lock(inviteId);
         SessionTask task = ownTask(inviteId, sessionTaskId);
+        // a reloaded page continues the task's telemetry: next seq and the end of its time scale
+        var lastBatch = batches.findFirstBySessionTaskIdOrderBySeqDesc(task.getId());
         String beaconToken = null;
         if (isOpen(task.getSession())) {
             task.start(clock.instant());
@@ -116,7 +124,9 @@ public class CandidateTaskService {
         return new TaskView(task.getId(), task.getOrderNo(), task.getKind(), TaskCode.title(task.getVariant()),
                 task.getStatus(), task.getVariant().getStatementMd(), task.getVariant().getTimeLimitMin(), fileViews,
                 TaskCode.current(task.getCurrentCode(), taskFiles), task.getCodeSavedAt(),
-                runs.countBySessionTaskIdAndMode(task.getId(), RunMode.RUN), properties.runsPerTask(), beaconToken);
+                runs.countBySessionTaskIdAndMode(task.getId(), RunMode.RUN), properties.runsPerTask(), beaconToken,
+                lastBatch.map(batch -> batch.getSeq() + 1).orElse(0),
+                lastBatch.map(TelemetryBatch::getClientTsEnd).orElse(0.0));
     }
 
     /** Autosave of the editable files: at most once per {@code autosave-interval}, up to {@code max-code-bytes}. */

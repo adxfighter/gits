@@ -29,11 +29,11 @@ import { MonacoApi, MonacoLoader } from '../../core/editor/monaco-loader.service
             type="button"
             [class.code-viewer__tab--active]="path === active()"
             [attr.aria-pressed]="path === active()"
-            [title]="path"
+            [title]="titleOf(path)"
             (click)="selected.set(path)"
             data-testid="code-tab"
           >
-            {{ fileName(path) }}
+            {{ labelOf(path) }}
           </button>
         }
       </div>
@@ -57,7 +57,10 @@ import { MonacoApi, MonacoLoader } from '../../core/editor/monaco-loader.service
   `,
 })
 export class CodeViewer {
+  /** Content by key; the key is the file path, or ends with it. */
   readonly files = input.required<Record<string, string>>();
+  /** Tab labels by key, and the files kept in the given order; without them — file names, Java sources first. */
+  readonly labels = input<Record<string, string> | null>(null);
 
   private readonly host = viewChild.required<ElementRef<HTMLElement>>('host');
   private readonly monaco = signal<MonacoApi | null>(null);
@@ -67,7 +70,9 @@ export class CodeViewer {
 
   protected readonly selected = signal<string | null>(null);
   protected readonly failed = signal<string | null>(null);
-  protected readonly paths = computed(() => Object.keys(this.files()).sort(byTypingLast));
+  protected readonly paths = computed(() =>
+    this.labels() ? Object.keys(this.files()) : Object.keys(this.files()).sort(byTypingLast),
+  );
   protected readonly active = computed(() => {
     const selected = this.selected();
     return selected !== null && this.paths().includes(selected) ? selected : (this.paths()[0] ?? null);
@@ -115,6 +120,14 @@ export class CodeViewer {
       }
       this.editor.setModel(model);
     });
+  }
+
+  protected labelOf(key: string): string {
+    return this.labels()?.[key] ?? this.fileName(key);
+  }
+
+  protected titleOf(key: string): string {
+    return key.slice(key.indexOf(':') + 1);
   }
 
   protected fileName(path: string): string {

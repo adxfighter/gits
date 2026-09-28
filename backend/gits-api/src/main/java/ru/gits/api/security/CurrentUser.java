@@ -10,6 +10,11 @@ public final class CurrentUser {
     }
 
     public static GitsUserDetails employer() {
+        return user();
+    }
+
+    /** The signed-in employer or administrator. */
+    public static GitsUserDetails user() {
         return (GitsUserDetails) authentication().getPrincipal();
     }
 

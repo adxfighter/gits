@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -25,6 +26,15 @@ public interface AssessmentSessionRepository extends JpaRepository<AssessmentSes
     Optional<AssessmentSession> findByIdAndInviteCompanyId(UUID id, UUID companyId);
 
     List<AssessmentSession> findByInviteIdIn(Collection<UUID> inviteIds);
+
+    /** Every session, newest first (the admin's list), with its invite and company in the same query. */
+    @EntityGraph(attributePaths = {"invite", "invite.company"})
+    List<AssessmentSession> findAllByOrderByStartedAtDesc();
+
+    /** Sessions started in {@code [from, to)} (the research export), with their invite and company. */
+    @EntityGraph(attributePaths = {"invite", "invite.company"})
+    List<AssessmentSession> findByStartedAtGreaterThanEqualAndStartedAtLessThanOrderByStartedAt(Instant from,
+                                                                                            Instant to);
 
     /**
      * Finished sessions without a score whose submits are all checked (or taken as lost: waiting since before

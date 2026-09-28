@@ -16,6 +16,9 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+    async:
+      # the research export is streamed on an async request: the default 30 s would cut a long one off
+      request-timeout: 30m
 
 server:
   port: 8080

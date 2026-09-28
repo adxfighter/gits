@@ -6,7 +6,7 @@ import { Observable, firstValueFrom } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AuthService, CurrentUser } from './auth.service';
-import { employerGuard } from './employer.guard';
+import { adminGuard, employerGuard } from './role.guard';
 
 describe('employerGuard', () => {
   let http: HttpTestingController;
@@ -24,9 +24,13 @@ describe('employerGuard', () => {
     return { userId: 'u', email: 'employer@demo.local', role, companyId: 'c', companyName: 'Демо' };
   }
 
-  async function run(answer: (request: ReturnType<HttpTestingController['expectOne']>) => void): Promise<GuardResult> {
+  async function run(
+    answer: (request: ReturnType<HttpTestingController['expectOne']>) => void,
+    guard = employerGuard,
+    url = '/employer/sessions/s-1',
+  ): Promise<GuardResult> {
     const result = TestBed.runInInjectionContext(() =>
-      employerGuard({} as ActivatedRouteSnapshot, { url: '/employer/sessions/s-1' } as RouterStateSnapshot),
+      guard({} as ActivatedRouteSnapshot, { url } as RouterStateSnapshot),
     ) as MaybeAsync<GuardResult>;
     const pending = firstValueFrom(result as Observable<GuardResult>);
     answer(http.expectOne('/api/auth/me'));
@@ -47,9 +51,10 @@ describe('employerGuard', () => {
     expect(url(result)).toBe('/login?returnUrl=/employer/sessions/s-1');
   });
 
-  it('sends an administrator to the login page with a note', async () => {
-    const result = await run((request) => request.flush(user('ADMIN')));
-    expect(url(result)).toBe('/login?returnUrl=/employer/sessions/s-1&reason=role');
+  it('sends an administrator to their own section, and an employer away from it', async () => {
+    expect(url(await run((request) => request.flush(user('ADMIN'))))).toBe('/admin/tasks');
+    expect(await run((request) => request.flush(user('ADMIN')), adminGuard, '/admin/sessions')).toBe(true);
+    expect(url(await run((request) => request.flush(user('EMPLOYER')), adminGuard, '/admin/sessions'))).toBe('/employer');
   });
 
   it('tells a lost connection from a missing session', async () => {

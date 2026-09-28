@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 
-import { employerGuard } from './core/auth/employer.guard';
+import { adminGuard, employerGuard } from './core/auth/role.guard';
 import { candidateGuard, consentGuard } from './core/candidate/consent.guard';
 
 export const routes: Routes = [
@@ -31,6 +31,25 @@ export const routes: Routes = [
     canActivate: [employerGuard],
     loadComponent: () => import('./pages/employer/replay/replay-page').then((m) => m.ReplayPage),
     title: 'Воспроизведение — GITS',
+  },
+  { path: 'admin', pathMatch: 'full', redirectTo: 'admin/tasks' },
+  {
+    path: 'admin/tasks',
+    canActivate: [adminGuard],
+    loadComponent: () => import('./pages/admin/admin-tasks-page').then((m) => m.AdminTasksPage),
+    title: 'Банк задач — GITS',
+  },
+  {
+    path: 'admin/tasks/:variantId',
+    canActivate: [adminGuard],
+    loadComponent: () => import('./pages/admin/admin-variant-page').then((m) => m.AdminVariantPage),
+    title: 'Вариант задачи — GITS',
+  },
+  {
+    path: 'admin/sessions',
+    canActivate: [adminGuard],
+    loadComponent: () => import('./pages/admin/admin-sessions-page').then((m) => m.AdminSessionsPage),
+    title: 'Сессии — GITS',
   },
   {
     path: 'c/consent',

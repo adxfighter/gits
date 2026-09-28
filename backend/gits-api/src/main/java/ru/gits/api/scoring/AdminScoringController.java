@@ -30,7 +30,7 @@ class AdminScoringController {
         if (!sessions.existsById(sessionId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Сессия не найдена");
         }
-        ScoringService.Result result = scoring.recomputeByAdmin(sessionId, CurrentUser.employer().getUsername());
+        ScoringService.Result result = scoring.recomputeByAdmin(sessionId, CurrentUser.user().getUsername());
         if (!result.scored()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Сессия ещё идёт или не все решения проверены — пересчёт невозможен");

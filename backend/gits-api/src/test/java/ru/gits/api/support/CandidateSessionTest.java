@@ -166,6 +166,11 @@ public abstract class CandidateSessionTest extends ApiTest {
         return new Candidate(candidateCookie(consent));
     }
 
+    /** A candidate whose cookie was obtained by the test itself (for example, with its own request headers). */
+    protected Candidate candidate(Cookie cookie) {
+        return new Candidate(cookie);
+    }
+
     protected final class Candidate {
         private final Cookie cookie;
 

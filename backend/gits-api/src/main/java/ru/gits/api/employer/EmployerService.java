@@ -25,6 +25,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import ru.gits.api.scoring.ScoringService;
+import ru.gits.api.scoring.TaskOutcome;
 import ru.gits.api.security.GitsUserDetails;
 import ru.gits.api.session.TaskCode;
 import ru.gits.core.audit.AuditLog;
@@ -86,7 +88,7 @@ public class EmployerService {
                              List<String> competencies, List<String> competencyTitles,
                              Level level, String title, SessionTaskStatus status,
                              RunStatus submitStatus, Boolean submitCompiled, Integer hiddenTestsPassed,
-                             Integer hiddenTestsTotal, Instant startedAt,
+                             Integer hiddenTestsTotal, TaskOutcome counted, Instant startedAt,
                              Instant submittedAt, Long durationSeconds, long runs, TrustLevel trustLevel,
                              JsonNode indicators, Map<String, String> finalCode) {
     }
@@ -128,6 +130,7 @@ public class EmployerService {
     private final SessionIndicatorsRepository indicators;
     private final AuditLogRepository audit;
     private final CompetencyCatalog competencyCatalog;
+    private final ScoringService scoring;
     private final ObjectMapper json;
     private final Clock clock;
 
@@ -135,7 +138,8 @@ public class EmployerService {
                            SessionTaskRepository sessionTasks, TaskFileRepository files, RunJobRepository runs,
                            RunResultRepository results, TelemetryBatchRepository batches,
                            SessionScoreRepository scores, SessionIndicatorsRepository indicators,
-                           AuditLogRepository audit, CompetencyCatalog competencyCatalog, ObjectMapper json,
+                           AuditLogRepository audit, CompetencyCatalog competencyCatalog, ScoringService scoring,
+                           ObjectMapper json,
                            Clock clock) {
         this.invites = invites;
         this.sessions = sessions;
@@ -148,6 +152,7 @@ public class EmployerService {
         this.indicators = indicators;
         this.audit = audit;
         this.competencyCatalog = competencyCatalog;
+        this.scoring = scoring;
         this.json = json;
         this.clock = clock;
     }
@@ -201,8 +206,13 @@ public class EmployerService {
                         List.of(session.getId())).stream()
                 .collect(Collectors.toMap(row -> row.getSessionTask().getId(), Function.identity()));
         List<TaskReport> tasks = new ArrayList<>();
+        // what the stored score counted, so that the cards and the score card never disagree
+        Map<String, JsonNode> scoredTasks = new java.util.HashMap<>();
+        score.map(value -> read(value.getPerTask())).ifPresent(perTask -> perTask.path("tasks").forEach(row ->
+                scoredTasks.put(row.path("sessionTaskId").asText(), row)));
         for (SessionTask task : sessionTasks.findBySessionIdOrderByOrderNo(session.getId())) {
-            tasks.add(taskReport(task, indicatorsByTask.get(task.getId())));
+            tasks.add(taskReport(task, indicatorsByTask.get(task.getId()), score.isPresent(),
+                    scoredTasks.get(task.getId().toString())));
         }
         // the calibration block has indicators, but they do not count toward the trust level (P12)
         TrustLevel trust = indicatorsByTask.values().stream()
@@ -216,7 +226,7 @@ public class EmployerService {
                 score.map(value -> read(value.getPerTask())).orElse(null), trust, tasks);
     }
 
-    private TaskReport taskReport(SessionTask task, SessionIndicators row) {
+    private TaskReport taskReport(SessionTask task, SessionIndicators row, boolean scored, JsonNode scoreRow) {
         var variant = task.getVariant();
         var template = variant.getTemplate();
         var submit = runs.findFirstBySessionTaskIdAndModeOrderByCreatedAtDesc(task.getId(), RunMode.SUBMIT);
@@ -252,9 +262,31 @@ public class EmployerService {
         return new TaskReport(task.getId(), task.getOrderNo(), task.getKind(), template.getCode(),
                 template.getTitle(), competencies, competencyCatalog.titles(competencies), variant.getLevel(),
                 TaskCode.title(variant), task.getStatus(), submit.map(RunJob::getStatus).orElse(null),
-                result.map(RunResult::isCompiled).orElse(null), hiddenPassed, hiddenTotal, task.getStartedAt(),
+                result.map(RunResult::isCompiled).orElse(null), hiddenPassed, hiddenTotal,
+                counted(task, submit.orElse(null), scored, scoreRow), task.getStartedAt(),
                 task.getSubmittedAt(), duration, runs.countBySessionTaskIdAndMode(task.getId(), RunMode.RUN),
                 row == null ? null : row.getTrustLevel(), row == null ? null : read(row.getIndicators()), finalCode);
+    }
+
+    /**
+     * What the score counts of a task: from the stored score when the session is scored (a score of an older
+     * version, without these fields, has none: the card then shows the plain hidden-test numbers, as that score
+     * did); computed from the last submit while the session is not scored yet.
+     */
+    private TaskOutcome counted(SessionTask task, RunJob submit, boolean scored, JsonNode row) {
+        if (submit == null) {
+            return null;
+        }
+        if (!scored) {
+            return scoring.outcome(task, submit);
+        }
+        if (row == null || !row.has("testsCounted")) {
+            return null;
+        }
+        return new TaskOutcome(row.path("testsCounted").asInt(0), row.path("testsCountedPassed").asInt(0),
+                row.path("guardTests").isNumber() ? row.path("guardTests").asInt() : null,
+                row.path("guardTestsBroken").asInt(0), row.path("codeUnchanged").asBoolean(false),
+                row.path("share").decimalValue());
     }
 
     /** Replay data of a task: the files the candidate started from, runs and a page of events by batch seq. */

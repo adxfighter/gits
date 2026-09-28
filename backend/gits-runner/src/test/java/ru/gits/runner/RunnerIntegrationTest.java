@@ -95,6 +95,10 @@ class RunnerIntegrationTest {
                     .extracting(c -> c.get("name").asText())
                     .containsExactlyInAnyOrder("Скрытый тест 1", "Скрытый тест 2", "Скрытый тест 3");
             assertThat(cases).filteredOn(c -> c.get("hidden").asBoolean()).allMatch(c -> c.get("message").isNull());
+            // a hidden case keeps a key for scoring (not its name); a visible one has none
+            assertThat(cases).filteredOn(c -> c.get("hidden").asBoolean())
+                    .allMatch(c -> c.path("key").asText().matches("[0-9a-f]{16}"));
+            assertThat(cases).filteredOn(c -> !c.get("hidden").asBoolean()).allMatch(c -> !c.has("key"));
         }
     }
 

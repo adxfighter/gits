@@ -2,13 +2,14 @@
   "code" : "T05-v04",
   "status" : "PASSED",
   "content_hash" : "bca3f09b3e0a9f01fd36d3e638647dffda92720db9c5e0624acc924346f7b89c",
-  "validated_at" : "2026-09-27T18:34:57.202519600Z",
-  "validator_version" : 1,
+  "validated_at" : "2026-09-28T16:10:47.595290Z",
+  "validator_version" : 2,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 3,
-    "reference_max_ms" : 4640
+    "reference_max_ms" : 7077,
+    "starter_passing_hidden" : [ "59caa3cdbebeb3fe", "5c6fe9b30ea2577b", "66d508c47c33f805", "8c94814ac8a98eaa", "a34dd311576df773", "aa691d2fad29690e", "b8246fe0709f7026", "c048550447be9823", "ccc717851172b1e3", "ec2bb35009ae6260" ]
   },
   "checks" : [ {
     "id" : "schema",
@@ -41,11 +42,11 @@
   }, {
     "id" : "starter_fails",
     "passed" : true,
-    "details" : "starter провалил скрытые тесты в 3 из 3 прогонов (нужно не менее 3)"
+    "details" : "starter провалил скрытые тесты в 3 из 3 прогонов (нужно не менее 3); исправить нужно 4 из 14 скрытых проверок, остальные 10 проверяют, что ничего не сломано"
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 4640 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 7077 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,

@@ -100,6 +100,12 @@ public class TaskVariant extends BaseEntity {
         return file;
     }
 
+    /** A new validation report for the same content (e.g. a newer validator): the files stay as they are. */
+    public void refreshValidationReport(String validationReport, Instant now) {
+        this.validationReport = validationReport;
+        this.updatedAt = now;
+    }
+
     public void disable(Instant now) {
         this.status = VariantStatus.DISABLED;
         this.updatedAt = now;

@@ -51,6 +51,8 @@ export interface TaskReport {
   submitCompiled: boolean | null;
   hiddenTestsPassed: number | null;
   hiddenTestsTotal: number | null;
+  /** What the score counts of the last submit (docs/indicators.md); null without a submit. */
+  counted: CountedTests | null;
   startedAt: string | null;
   submittedAt: string | null;
   durationSeconds: number | null;
@@ -60,10 +62,30 @@ export interface TaskReport {
   finalCode: Record<string, string>;
 }
 
+/**
+ * The tests the score counts: for a task, the hidden tests the starter fails (the others — `guards` — check that
+ * nothing got broken; null when the variant does not say); for the warm-up, the tests of its part 2.
+ */
+export interface CountedTests {
+  counted: number;
+  countedPassed: number;
+  guards: number | null;
+  guardsBroken: number;
+  unchanged: boolean;
+  share: number;
+}
+
 /** An entry of scorePerTask.tasks (docs/indicators.md, «Предварительный балл»). */
 export interface TaskScore {
   sessionTaskId: string;
+  kind?: 'TASK' | 'CALIBRATION';
   level: Level;
+  testsCounted?: number;
+  testsCountedPassed?: number;
+  guardTests?: number | null;
+  guardTestsBroken?: number;
+  codeUnchanged?: boolean;
+  note?: string;
   weight?: number;
   share?: number;
   hiddenTestsPassed?: number;

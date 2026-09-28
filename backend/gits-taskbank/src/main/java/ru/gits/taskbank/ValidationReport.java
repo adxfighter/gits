@@ -19,7 +19,8 @@ public record ValidationReport(
         Runs runs,
         List<Check> checks) {
 
-    public static final int VALIDATOR_VERSION = 1;
+    /** 2: {@code runs.starter_passing_hidden} — the hidden tests the starter passes (P12 rework). */
+    public static final int VALIDATOR_VERSION = 2;
 
     public enum Status {
         PASSED,
@@ -35,11 +36,20 @@ public record ValidationReport(
      * @param referencePassed    runs where the reference solution passed every test
      * @param starterFailed      runs where the starter failed at least one hidden test
      * @param referenceMaxMs     slowest reference run, including container start
+     * @param starterPassingHidden keys ({@code ru.gits.sandbox.TestKey}) of the hidden tests the starter passed in
+     *                           every run: they check that nothing got broken and do not count toward the score;
+     *                           the others are the tests the solution has to fix. Empty for the warm-up
      */
-    @JsonPropertyOrder({"requested", "reference_passed", "starter_failed", "reference_max_ms"})
+    @JsonPropertyOrder({"requested", "reference_passed", "starter_failed", "reference_max_ms",
+            "starter_passing_hidden"})
     public record Runs(int requested,
                        @JsonProperty("reference_passed") int referencePassed,
                        @JsonProperty("starter_failed") int starterFailed,
-                       @JsonProperty("reference_max_ms") long referenceMaxMs) {
+                       @JsonProperty("reference_max_ms") long referenceMaxMs,
+                       @JsonProperty("starter_passing_hidden") List<String> starterPassingHidden) {
+
+        public Runs {
+            starterPassingHidden = starterPassingHidden == null ? List.of() : List.copyOf(starterPassingHidden);
+        }
     }
 }

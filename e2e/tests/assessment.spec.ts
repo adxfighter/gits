@@ -58,7 +58,8 @@ test('работодатель открывает отчёт и воспроиз
   await expect(page.getByTestId('score-note')).toContainText('Предварительный балл');
   const cards = page.getByTestId('task-card');
   await expect(cards).toHaveCount(4);
-  await expect(cards.nth(1).getByTestId('hidden-tests')).toHaveText(/^(\d+) из \1$/);
+  // all the tests to fix are fixed (older bank reports: all hidden tests passed)
+  await expect(cards.nth(1).getByTestId('hidden-tests')).toHaveText(/^(исправлено )?(\d+) из \2$/);
   await expect(cards.nth(1).getByTestId('indicators')).toBeVisible();
 
   await cards.nth(1).getByTestId('replay').click();

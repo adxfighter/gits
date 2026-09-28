@@ -43,6 +43,7 @@ import ru.gits.core.session.SessionStatus;
 import ru.gits.core.session.SessionTask;
 import ru.gits.core.session.SessionTaskRepository;
 import ru.gits.core.task.FileKind;
+import ru.gits.core.task.TaskFile;
 import ru.gits.core.task.TaskFileRepository;
 import ru.gits.core.task.TaskKind;
 import ru.gits.core.telemetry.TelemetryBatch;
@@ -51,7 +52,8 @@ import ru.gits.core.telemetry.TelemetryBatchRepository;
 /**
  * Indicators of every task and the preliminary score of a finished session (docs/indicators.md). Runs once all its
  * submits are checked; an administrator can recompute it. The calibration block gets indicators — its typing speed
- * is the candidate's baseline — but takes part neither in the trust level nor in the score.
+ * is the candidate's baseline — but takes no part in the trust level; it counts in the score with
+ * {@code calibration-weight}, by the tests of its part 2.
  */
 @Service
 public class ScoringService {
@@ -212,21 +214,19 @@ public class ScoringService {
     }
 
     /**
-     * Preliminary score 0-100: the share of hidden tests passed by the last submit of each task, weighted by the
-     * task's level. A submit that did not reach the tests because of the code (compile error, timeout) counts as
-     * none passed; one the platform failed to check (runner error, lost) leaves the task out of the score.
+     * Preliminary score 0-100: for each task the share of the tests its last submit had to fix ({@link TaskOutcome}),
+     * weighted by the task's level; the warm-up with {@code calibration-weight}, by the tests of its part 2. A
+     * submit that did not reach the tests because of the code (compile error, timeout) counts as none passed; one
+     * the platform failed to check (runner error, lost) leaves the task out of the score.
      */
     private BigDecimal score(AssessmentSession session, List<SessionTask> tasks, Instant now) {
         BigDecimal weighted = BigDecimal.ZERO;
         BigDecimal totalWeight = BigDecimal.ZERO;
         List<Map<String, Object>> perTask = new ArrayList<>();
         for (SessionTask task : tasks) {
-            if (task.getKind() == TaskKind.CALIBRATION) {
-                continue;
-            }
-            BigDecimal weight = scoring.weights().getOrDefault(task.getVariant().getLevel(), BigDecimal.ONE);
-            int passed = 0;
-            int total = 0;
+            boolean calibration = task.getKind() == TaskKind.CALIBRATION;
+            BigDecimal weight = calibration ? scoring.calibrationWeight()
+                    : scoring.weights().getOrDefault(task.getVariant().getLevel(), BigDecimal.ONE);
             var submit = runs.findFirstBySessionTaskIdAndModeOrderByCreatedAtDesc(task.getId(), RunMode.SUBMIT);
             if (submit.isPresent() && notChecked(submit.get())) {
                 Map<String, Object> row = new LinkedHashMap<>();
@@ -237,28 +237,24 @@ public class ScoringService {
                 perTask.add(row);
                 continue;
             }
-            var result = submit.flatMap(job -> results.findByRunJobId(job.getId()));
-            if (result.isPresent()) {
-                for (JsonNode testCase : read(result.get().getTestCases())) {
-                    if (testCase.path("hidden").asBoolean(false)) {
-                        total++;
-                        if ("PASSED".equals(testCase.path("status").asText())) {
-                            passed++;
-                        }
-                    }
-                }
-            }
-            BigDecimal share = total == 0 ? BigDecimal.ZERO
-                    : BigDecimal.valueOf(passed).divide(BigDecimal.valueOf(total), 4, RoundingMode.HALF_UP);
+            TaskOutcome outcome = outcome(task, submit.orElse(null));
+            BigDecimal share = outcome.share();
             weighted = weighted.add(share.multiply(weight));
             totalWeight = totalWeight.add(weight);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("sessionTaskId", task.getId());
+            row.put("kind", task.getKind());
             row.put("level", task.getVariant().getLevel());
             row.put("weight", weight);
-            row.put("hiddenTestsPassed", passed);
-            row.put("hiddenTestsTotal", total == 0 ? null : total);
+            row.put("testsCounted", outcome.counted());
+            row.put("testsCountedPassed", outcome.countedPassed());
+            row.put("guardTests", outcome.guards());
+            row.put("guardTestsBroken", outcome.guardsBroken());
+            row.put("codeUnchanged", outcome.unchanged());
             row.put("share", share);
+            if (outcome.zeroReason() != null) {
+                row.put("note", outcome.zeroReason());
+            }
             perTask.add(row);
         }
         BigDecimal score = totalWeight.signum() == 0 ? BigDecimal.ZERO
@@ -271,6 +267,23 @@ public class ScoringService {
                 row -> row.recompute(stored, score, now),
                 () -> scores.save(new SessionScore(session, stored, score, now)));
         return score;
+    }
+
+    /** The last submit of a task against the tests it had to fix; no submit — nothing passed. */
+    public TaskOutcome outcome(SessionTask task, RunJob submit) {
+        var variant = task.getVariant();
+        JsonNode testCases = submit == null ? null
+                : results.findByRunJobId(submit.getId()).map(r -> read(r.getTestCases())).orElse(null);
+        boolean unchanged = false;
+        if (submit != null && task.getKind() != TaskKind.CALIBRATION) {
+            Map<String, String> starter = new LinkedHashMap<>();
+            files.findByVariantIdAndKindIn(variant.getId(), List.of(FileKind.STARTER)).stream()
+                    .filter(TaskFile::isEditable)
+                    .forEach(file -> starter.put(file.getPath(), file.getContent()));
+            unchanged = TaskOutcome.unchanged(readCode(submit.getPayload()), starter);
+        }
+        JsonNode report = variant.getValidationReport() == null ? null : read(variant.getValidationReport());
+        return TaskOutcome.of(task.getKind(), testCases, TaskOutcome.guardKeys(report), unchanged);
     }
 
     /** The platform, not the candidate, failed: a runner error, or a submit still waiting after the stuck limit. */

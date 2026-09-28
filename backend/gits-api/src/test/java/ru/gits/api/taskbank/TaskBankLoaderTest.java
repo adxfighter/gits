@@ -90,6 +90,31 @@ class TaskBankLoaderTest {
     }
 
     @Test
+    void aNewValidationReportOfTheSameContentReplacesTheStoredOneAndKeepsTheFiles() throws IOException {
+        load();
+        long[] files = new long[1];
+        inTransaction(() -> files[0] = variants.findByCode(CODE).orElseThrow().getFiles().size());
+        // validated again by a newer validator: the content hash is the same, the report says more
+        Path report = tasks.resolve(VARIANT).resolve("validation.json");
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        var tree = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(report.toFile());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) tree.path("runs")).putArray("starter_passing_hidden")
+                .add("0123456789abcdef");
+        json.writerWithDefaultPrettyPrinter().writeValue(report.toFile(), tree);
+        now = now.plusSeconds(60);
+
+        TaskBankLoader.Summary summary = load();
+
+        assertThat(summary.updated()).isEqualTo(1);
+        inTransaction(() -> {
+            TaskVariant variant = variants.findByCode(CODE).orElseThrow();
+            assertThat(variant.getValidationReport()).contains("0123456789abcdef");
+            assertThat((long) variant.getFiles().size()).isEqualTo(files[0]);
+        });
+        assertThat(load().unchanged()).isEqualTo(1);
+    }
+
+    @Test
     void firstLoadStoresTemplateVariantAndAllFiles() {
         TaskBankLoader.Summary summary = load();
 

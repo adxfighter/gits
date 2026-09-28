@@ -2,13 +2,14 @@
   "code" : "T00-v01",
   "status" : "PASSED",
   "content_hash" : "f06f3224b7a30232fc8e3d197a5d47ce4ad527e7acd039408c3cc8cf21e66145",
-  "validated_at" : "2026-09-27T14:56:30.144482100Z",
-  "validator_version" : 1,
+  "validated_at" : "2026-09-28T15:53:33.182031900Z",
+  "validator_version" : 2,
   "runs" : {
     "requested" : 3,
     "reference_passed" : 3,
     "starter_failed" : 3,
-    "reference_max_ms" : 4553
+    "reference_max_ms" : 3819,
+    "starter_passing_hidden" : [ "537383debb0668c1", "7dcce85dba0720e2", "ce883729aca157f4" ]
   },
   "checks" : [ {
     "id" : "schema",
@@ -41,11 +42,11 @@
   }, {
     "id" : "starter_fails",
     "passed" : true,
-    "details" : "starter провалил скрытые тесты в 3 из 3 прогонов (нужно не менее 3)"
+    "details" : "starter провалил скрытые тесты в 3 из 3 прогонов (нужно не менее 3); исправить нужно 4 из 7 скрытых проверок, остальные 3 проверяют, что ничего не сломано"
   }, {
     "id" : "reference_time",
     "passed" : true,
-    "details" : "самый долгий прогон решения — 4553 мс (не более 10000)"
+    "details" : "самый долгий прогон решения — 3819 мс (не более 10000)"
   }, {
     "id" : "content_hash",
     "passed" : true,

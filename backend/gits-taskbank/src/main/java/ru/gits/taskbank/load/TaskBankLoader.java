@@ -226,6 +226,12 @@ public final class TaskBankLoader {
         if (existing.isPresent() && existing.get().getContentHash().equals(checked.hash())
                 && existing.get().getStatus() == VariantStatus.VALIDATED
                 && existing.get().getTemplate().getId().equals(template.getId())) {
+            // the same content, validated again (a newer validator writes more, e.g. the tests the starter passes)
+            if (existing.get().getValidationReport() == null
+                    || !sameJson(existing.get().getValidationReport(), checked.report())) {
+                existing.get().refreshValidationReport(checked.report(), now);
+                return Outcome.UPDATED;
+            }
             return Outcome.UNCHANGED;
         }
         TaskVariant variant;

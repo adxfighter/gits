@@ -14,7 +14,16 @@ import ru.gits.core.result.TrustLevel;
  */
 final class TrustRules {
 
-    record Verdict(TrustLevel level, List<String> reasons) {
+    /** {@code fired} — the rules that hold, in the order of the configuration; {@code reasons} — their texts. */
+    record Verdict(TrustLevel level, List<String> reasons, List<Fired> fired) {
+    }
+
+    /**
+     * A rule that holds: its level, its text and the report indicators it looks at (the report highlights them).
+     * Values that are not indicators of the report map to the indicator they belong to: focusLossCount and
+     * focusLossSeconds to focusLoss; typedChars (a threshold, not a finding) to none.
+     */
+    record Fired(TrustLevel level, String reason, List<String> indicators) {
     }
 
     private record Condition(String name, String op, double value) {
@@ -65,14 +74,27 @@ final class TrustRules {
     Verdict evaluate(Map<String, Double> values) {
         TrustLevel level = TrustLevel.GREEN;
         List<String> reasons = new ArrayList<>();
+        List<Fired> fired = new ArrayList<>();
         for (CompiledRule rule : rules) {
             if (rule.conditions().stream().allMatch(condition -> condition.holds(values))) {
                 reasons.add(rule.explanation());
+                fired.add(new Fired(rule.level(), rule.explanation(), rule.conditions().stream()
+                        .map(condition -> reportIndicator(condition.name())).filter(name -> name != null)
+                        .distinct().toList()));
                 if (rule.level().ordinal() > level.ordinal()) {
                     level = rule.level();
                 }
             }
         }
-        return new Verdict(level, List.copyOf(reasons));
+        return new Verdict(level, List.copyOf(reasons), List.copyOf(fired));
+    }
+
+    private static String reportIndicator(String value) {
+        return switch (value) {
+            case "focusLossCount", "focusLossSeconds" -> "focusLoss";
+            case "burstRelative" -> "burstMax";
+            case "typedChars", "pastedChars" -> null;
+            default -> value;
+        };
     }
 }

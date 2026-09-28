@@ -162,3 +162,13 @@ a.btn {
 .trust--red {
   color: var(--danger);
 }
+
+// The candidate's cursor in the replay editor (Monaco renders outside the component styles).
+.replay-caret {
+  border-left: 2px solid #ffcc00;
+  margin-left: -1px;
+}
+
+.replay-caret-line {
+  background: rgb(255 204 0 / 8%);
+}

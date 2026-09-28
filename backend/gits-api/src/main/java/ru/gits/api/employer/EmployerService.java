@@ -112,9 +112,9 @@ public class EmployerService {
      * Replay page. {@code events} keep their fields from docs/telemetry.md plus {@code seq} of their batch;
      * {@code nextSeq} is where the next page starts, null on the last page.
      */
-    public record Replay(UUID sessionTaskId, SessionTaskStatus status, Instant startedAt, Instant submittedAt,
-                         List<ReplayFile> initialFiles, List<ReplayRun> runs, List<JsonNode> events,
-                         int fromSeq, Integer nextSeq) {
+    public record Replay(UUID sessionTaskId, UUID sessionId, SessionTaskStatus status, Instant startedAt,
+                         Instant submittedAt, List<ReplayFile> initialFiles, List<ReplayRun> runs,
+                         List<JsonNode> events, int fromSeq, Integer nextSeq) {
     }
 
     private final InviteRepository invites;
@@ -297,7 +297,8 @@ public class EmployerService {
                 }
             });
         }
-        return new Replay(task.getId(), task.getStatus(), task.getStartedAt(), task.getSubmittedAt(), initial,
+        return new Replay(task.getId(), task.getSession().getId(), task.getStatus(), task.getStartedAt(),
+                task.getSubmittedAt(), initial,
                 runViews, events, fromSeq, nextSeq);
     }
 

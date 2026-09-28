@@ -51,7 +51,8 @@ mvn verify   # unit- и интеграционные тесты; нужен за
 | P11 Сбор телеметрии в браузере | готово ([docs/telemetry.md](docs/telemetry.md#сбор-в-браузере)) |
 | P12 Индикаторы достоверности и предварительный балл | готово ([docs/indicators.md](docs/indicators.md)) |
 | P13 Кабинет работодателя | готово: вход, приглашения, отчёт по сессии ([ADR 0011](docs/adr/0011-employer-dashboard-ui.md)) |
-| P14–P17 | в работе |
+| P14 Воспроизведение сессии | готово: проигрыватель, шкала времени, график скорости набора ([ADR 0012](docs/adr/0012-session-replay.md)) |
+| P15–P17 | в работе |
 
 ### Frontend
 ```bash
@@ -62,4 +63,4 @@ npm run lint
 npm test
 npm run build
 ```
-Редактор кода — Monaco (`monaco-editor`, версия закреплена): при сборке он копируется из node_modules в `assets/monaco` и загружается только оттуда, внешних запросов страница не делает. Интерфейс кандидата — маршруты `/c/:token` (вход по ссылке), `/c/consent`, `/c/intro`, `/c/session`, `/c/done`; `/c/closed` — доступ закрыт (ссылка отозвана или оценка завершена), `/c/offline` — нет связи с сервером. Кабинет работодателя — `/login`, `/employer` (приглашения), `/employer/sessions/:id` (отчёт), `/employer/replay/:sessionTaskId` (до P14 — заглушка).
+Редактор кода — Monaco (`monaco-editor`, версия закреплена): при сборке он копируется из node_modules в `assets/monaco` и загружается только оттуда, внешних запросов страница не делает. Интерфейс кандидата — маршруты `/c/:token` (вход по ссылке), `/c/consent`, `/c/intro`, `/c/session`, `/c/done`; `/c/closed` — доступ закрыт (ссылка отозвана или оценка завершена), `/c/offline` — нет связи с сервером. Кабинет работодателя — `/login`, `/employer` (приглашения), `/employer/sessions/:id` (отчёт), `/employer/replay/:sessionTaskId` (воспроизведение сессии).

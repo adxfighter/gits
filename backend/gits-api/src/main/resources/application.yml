@@ -113,3 +113,5 @@ gits:
       SENIOR: 2.0
     # finished sessions whose submits are all checked get their indicators and score
     check-interval: 15s
+    # a submit still queued or running after this is taken as lost (runner down): scored without that task
+    stuck-submit-after: 15m

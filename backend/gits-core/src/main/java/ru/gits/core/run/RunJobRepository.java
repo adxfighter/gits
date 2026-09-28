@@ -45,6 +45,10 @@ public interface RunJobRepository extends JpaRepository<RunJob, UUID> {
 
     long countBySessionTaskIdAndMode(UUID sessionTaskId, RunMode mode);
 
+    /** A submit of the session still waiting for the runner, created after {@code since} (older ones are lost). */
+    boolean existsBySessionTaskSessionIdAndModeAndStatusInAndCreatedAtAfter(UUID sessionId, RunMode mode,
+                                                                            List<RunStatus> statuses, Instant since);
+
     /** A run of the candidate's own session; other sessions' runs are not found. */
     Optional<RunJob> findByIdAndSessionTaskSessionInviteId(UUID id, UUID inviteId);
 

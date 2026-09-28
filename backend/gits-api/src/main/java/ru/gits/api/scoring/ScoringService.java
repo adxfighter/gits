@@ -22,6 +22,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ru.gits.api.session.TaskCode;
+import ru.gits.core.audit.AuditLog;
+import ru.gits.core.audit.AuditLogRepository;
 import ru.gits.core.invite.InviteRepository;
 import ru.gits.core.result.SessionIndicators;
 import ru.gits.core.result.SessionIndicatorsRepository;
@@ -70,6 +72,8 @@ public class ScoringService {
     private final SessionIndicatorsRepository indicatorRows;
     private final SessionScoreRepository scores;
     private final ScoringProperties scoring;
+    private final IndicatorProperties indicatorProperties;
+    private final AuditLogRepository audit;
     private final IndicatorCalculator calculator;
     private final TrustRules rules;
     private final ObjectMapper json;
@@ -79,7 +83,7 @@ public class ScoringService {
                           TelemetryBatchRepository batches, TaskFileRepository files, RunJobRepository runs,
                           RunResultRepository results, SessionIndicatorsRepository indicatorRows,
                           SessionScoreRepository scores, IndicatorProperties indicators, ScoringProperties scoring,
-                          ObjectMapper json, Clock clock) {
+                          AuditLogRepository audit, ObjectMapper json, Clock clock) {
         this.invites = invites;
         this.sessions = sessions;
         this.sessionTasks = sessionTasks;
@@ -90,15 +94,29 @@ public class ScoringService {
         this.indicatorRows = indicatorRows;
         this.scores = scores;
         this.scoring = scoring;
+        this.indicatorProperties = indicators;
+        this.audit = audit;
         this.calculator = new IndicatorCalculator(indicators);
         this.rules = new TrustRules(indicators.rules());
         this.json = json;
         this.clock = clock;
     }
 
+    /** Recalculation requested by an administrator; recorded in the audit log in the same transaction. */
+    @Transactional
+    public Result recomputeByAdmin(UUID sessionId, String actor) {
+        Result result = compute(sessionId);
+        if (result.scored()) {
+            audit.save(new AuditLog(actor, "SCORING_RECOMPUTED", "assessment_session", sessionId, "{}",
+                    clock.instant()));
+        }
+        return result;
+    }
+
     /**
-     * Computes (or recomputes) indicators and score of a finished session whose runs are all checked. A session that
-     * is still running or has runs in the queue is left for later.
+     * Computes (or recomputes) indicators and score of a finished session whose submits are all checked. A session
+     * still running or with submits in the queue is left for later; a submit waiting longer than
+     * {@code stuck-submit-after} is taken as lost and its task is left out of the score.
      */
     @Transactional
     public Result compute(UUID sessionId) {
@@ -107,7 +125,8 @@ public class ScoringService {
         // the trigger after finish, the scheduler and an administrator never compute one session at the same time
         invites.lockById(session.getInvite().getId());
         if (session.getStatus() == SessionStatus.IN_PROGRESS
-                || runs.existsBySessionTaskSessionIdAndStatusIn(sessionId, ACTIVE)) {
+                || runs.existsBySessionTaskSessionIdAndModeAndStatusInAndCreatedAtAfter(sessionId, RunMode.SUBMIT,
+                ACTIVE, stuckBefore())) {
             return new Result(sessionId, false, null);
         }
         List<SessionTask> tasks = sessionTasks.findBySessionIdOrderByOrderNo(sessionId);
@@ -123,7 +142,7 @@ public class ScoringService {
                 baseSpeed = computed.burstMax();
             }
             TrustRules.Verdict verdict = rules.evaluate(computed.values());
-            String stored = write(IndicatorTexts.of(computed, baseSpeed, verdict, calibration));
+            String stored = write(IndicatorTexts.of(computed, baseSpeed, verdict, calibration, indicatorProperties));
             indicatorRows.findBySessionTaskId(task.getId()).ifPresentOrElse(
                     row -> row.recompute(stored, verdict.level(), now),
                     () -> indicatorRows.save(new SessionIndicators(task, stored, verdict.level(), now)));
@@ -155,9 +174,15 @@ public class ScoringService {
         return code.values().stream().mapToInt(String::length).sum();
     }
 
+    /** Submits created before this and still not checked are taken as lost. */
+    private Instant stuckBefore() {
+        return clock.instant().minus(scoring.stuckSubmitAfter());
+    }
+
     /**
      * Preliminary score 0-100: the share of hidden tests passed by the last submit of each task, weighted by the
-     * task's level. A submit that did not reach the tests (compile error, timeout) counts as none passed.
+     * task's level. A submit that did not reach the tests because of the code (compile error, timeout) counts as
+     * none passed; one the platform failed to check (runner error, lost) leaves the task out of the score.
      */
     private BigDecimal score(AssessmentSession session, List<SessionTask> tasks, Instant now) {
         BigDecimal weighted = BigDecimal.ZERO;
@@ -171,6 +196,15 @@ public class ScoringService {
             int passed = 0;
             int total = 0;
             var submit = runs.findFirstBySessionTaskIdAndModeOrderByCreatedAtDesc(task.getId(), RunMode.SUBMIT);
+            if (submit.isPresent() && notChecked(submit.get())) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("sessionTaskId", task.getId());
+                row.put("level", task.getVariant().getLevel());
+                row.put("weight", weight);
+                row.put("excluded", "Решение не проверено из-за сбоя платформы — задача не входит в балл.");
+                perTask.add(row);
+                continue;
+            }
             var result = submit.flatMap(job -> results.findByRunJobId(job.getId()));
             if (result.isPresent()) {
                 for (JsonNode testCase : read(result.get().getTestCases())) {
@@ -205,6 +239,12 @@ public class ScoringService {
                 row -> row.recompute(stored, score, now),
                 () -> scores.save(new SessionScore(session, stored, score, now)));
         return score;
+    }
+
+    /** The platform, not the candidate, failed: a runner error, or a submit still waiting after the stuck limit. */
+    private boolean notChecked(RunJob submit) {
+        return submit.getStatus() == RunStatus.ERROR
+                || (ACTIVE.contains(submit.getStatus()) && submit.getCreatedAt().isBefore(stuckBefore()));
     }
 
     private JsonNode read(String value) {

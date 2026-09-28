@@ -1,11 +1,14 @@
 package ru.gits.api.scoring;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Indicators of one task from its telemetry (docs/indicators.md). A pure function of the events, so every indicator
@@ -55,28 +58,29 @@ final class IndicatorCalculator {
      * @param finalCodeChars size of the editable code that was checked (characters)
      * @param baseSpeed      the candidate's typing speed from the calibration block (chars/s), null if unknown
      */
+    /** Names the trust rules may refer to. */
+    static final Set<String> NAMES = Set.of("pasteRatio", "pastedChars", "largestPaste", "focusLossCount",
+            "focusLossSeconds", "burstMax", "burstRelative", "idleThenBurst", "linearity", "editRatio", "typedChars",
+            "timeToFirstRun", "runsCount", "telemetryEvents");
+
     TaskIndicators compute(List<InputEvent> events, int finalCodeChars, Double baseSpeed,
                            Double timeToFirstRunSeconds, int runsCount) {
         List<InputEvent> ordered = events.stream().sorted(Comparator.comparingDouble(InputEvent::t)).toList();
-        int pasted = 0;
-        int largestPaste = 0;
         int inserted = 0;
         int deleted = 0;
         int typed = 0;
         for (InputEvent event : ordered) {
-            if (!event.isEdit()) {
-                continue;
-            }
-            inserted += event.textLength();
-            deleted += event.rangeLength();
-            if (event.isPaste()) {
-                pasted += event.textLength();
-                largestPaste = Math.max(largestPaste, event.textLength());
-            }
-            if (event.isTyped()) {
-                typed += event.textLength();
+            if (event.isEdit()) {
+                inserted += event.textLength();
+                deleted += event.rangeLength();
+                if (event.isTyped()) {
+                    typed += event.textLength();
+                }
             }
         }
+        List<Integer> pastes = foreignPastes(ordered);
+        int pasted = pastes.stream().mapToInt(Integer::intValue).sum();
+        int largestPaste = pastes.stream().mapToInt(Integer::intValue).max().orElse(0);
         double pasteRatio = finalCodeChars <= 0 ? 0 : Math.min(1.0, (double) pasted / finalCodeChars);
         double[] focus = focusLoss(ordered);
         double burstMax = burstMax(ordered);
@@ -87,7 +91,37 @@ final class IndicatorCalculator {
                 timeToFirstRunSeconds == null ? null : round(timeToFirstRunSeconds), runsCount, events.size());
     }
 
-    /** Episodes of leaving the task (window blur or hidden tab) and their total length in seconds. */
+    /**
+     * Sizes of pastes that brought text from outside: a paste undone right away does not count, nor one of the
+     * candidate's own code copied or cut in the editor before (moving code around).
+     */
+    static List<Integer> foreignPastes(List<InputEvent> ordered) {
+        List<Integer> pastes = new ArrayList<>();
+        Set<Integer> copied = new HashSet<>();
+        Integer lastPaste = null;
+        for (InputEvent event : ordered) {
+            if ("copy".equals(event.type()) && event.length() > 0) {
+                copied.add(event.length());
+            } else if (event.isPaste()) {
+                lastPaste = null;
+                if (!copied.contains(event.textLength())) {
+                    pastes.add(event.textLength());
+                    lastPaste = pastes.size() - 1;
+                }
+            } else if (event.isEdit()) {
+                if (lastPaste != null && event.undo() && event.rangeLength() == pastes.get(lastPaste)) {
+                    pastes.remove((int) lastPaste);
+                }
+                lastPaste = null;
+            }
+        }
+        return pastes;
+    }
+
+    /**
+     * Episodes of leaving the task (window blur or hidden tab) and their total length in seconds. Any activity on
+     * the page ends an episode — also after a reload, where the new page may not report focus again.
+     */
     static double[] focusLoss(List<InputEvent> ordered) {
         boolean blurred = false;
         boolean hidden = false;
@@ -101,8 +135,7 @@ final class IndicatorCalculator {
                 case "focus" -> blurred = false;
                 case "visibility" -> hidden = "hidden".equals(event.state());
                 default -> {
-                    // any input means the candidate is back on the page
-                    if (wasAway && (event.isEdit() || "kd".equals(event.type()))) {
+                    if (wasAway && event.isActivity()) {
                         blurred = false;
                         hidden = false;
                     }
@@ -123,29 +156,32 @@ final class IndicatorCalculator {
         return new double[] {episodes, seconds};
     }
 
-    /** The highest typing speed in chars/s over a sliding window; pastes and completions do not count. */
+    /**
+     * The highest typing speed in characters per second over a sliding window, counted in key presses that type a
+     * character: pastes, completions and what the editor inserts by itself (indentation, closing brackets) do not
+     * count.
+     */
     double burstMax(List<InputEvent> ordered) {
         double window = properties.burstWindow().toMillis();
         Deque<InputEvent> inWindow = new ArrayDeque<>();
-        int chars = 0;
         int best = 0;
         for (InputEvent event : ordered) {
-            if (!event.isTyped() || event.textLength() == 0) {
+            if (!event.isCharacterKey()) {
                 continue;
             }
             inWindow.addLast(event);
-            chars += event.textLength();
             while (event.t() - inWindow.peekFirst().t() >= window) {
-                chars -= inWindow.removeFirst().textLength();
+                inWindow.removeFirst();
             }
-            best = Math.max(best, chars);
+            best = Math.max(best, inWindow.size());
         }
         return best / (window / 1000);
     }
 
     /**
      * Episodes "a pause without input longer than idle-pause, then more than idle-burst-chars typed within
-     * idle-burst-window, with no paste in that window".
+     * idle-burst-window, with no paste in that window". The time before the first input (reading the statement)
+     * and the time a page was closed (not on the t scale) are not pauses.
      */
     int idleThenBurst(List<InputEvent> ordered) {
         List<InputEvent> input = ordered.stream().filter(e -> e.isEdit() || "kd".equals(e.type())).toList();

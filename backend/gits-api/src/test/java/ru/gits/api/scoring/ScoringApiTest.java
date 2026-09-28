@@ -65,12 +65,12 @@ class ScoringApiTest extends CandidateSessionTest {
 
         // the automatic submits of the other tasks are still in the queue
         assertThat(scoring.compute(sessionId).scored()).isFalse();
-        assertThat(sessions.findIdsReadyForScoring(100)).doesNotContain(sessionId);
+        assertThat(sessions.findIdsReadyForScoring(100, clock.instant().minus(java.time.Duration.ofMinutes(15)))).doesNotContain(sessionId);
 
         for (UUID queued : queuedSubmits(sessionId)) {
             failToCompile(queued);
         }
-        assertThat(sessions.findIdsReadyForScoring(100)).contains(sessionId);
+        assertThat(sessions.findIdsReadyForScoring(100, clock.instant().minus(java.time.Duration.ofMinutes(15)))).contains(sessionId);
         ScoringService.Result result = scoring.compute(sessionId);
         assertThat(result.scored()).isTrue();
 
@@ -124,6 +124,40 @@ class ScoringApiTest extends CandidateSessionTest {
                 .with(csrf())).andExpect(status().isOk()).andReturn().getResponse());
         assertThat(result.get("scored").asBoolean()).isTrue();
         assertThat(result.get("preliminaryScore").decimalValue()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void aSubmitThePlatformFailedToCheckIsLeftOutOfTheScore() throws Exception {
+        MockHttpSession employer = login(accounts.employer());
+        Candidate candidate = newCandidate(employer);
+        JsonNode session = read(candidate.post("/candidate/session/start").andReturn().getResponse());
+        UUID sessionId = id(session);
+        UUID task = id(list(session.get("tasks")).get(1));
+        candidate.get("/candidate/tasks/" + task).andExpect(status().isOk());
+        UUID submit = id(read(candidate.post("/candidate/tasks/" + task + "/submit").andReturn().getResponse()),
+                "runId");
+        complete(submit, 3, 2, hiddenCases());
+        candidate.post("/candidate/session/finish").andExpect(status().isOk());
+        // queued in task order: the calibration block, task 2, task 3
+        List<UUID> queued = queuedSubmits(sessionId);
+        assertThat(queued).hasSize(3);
+        failToCompile(queued.get(0));
+        // task 2 hits a runner error; task 3 stays in the queue after the runner went down
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            RunJob job = runs.findById(queued.get(1)).orElseThrow();
+            job.markRunning("test-runner", clock.instant());
+            job.finish(RunStatus.ERROR, clock.instant());
+        });
+        assertThat(scoring.compute(sessionId).scored()).isFalse();
+
+        clock.advance(java.time.Duration.ofMinutes(16));
+        ScoringService.Result result = scoring.compute(sessionId);
+
+        assertThat(result.scored()).isTrue();
+        JsonNode perTask = json.readTree(scores.findAll().stream()
+                .filter(s -> s.getSession().getId().equals(sessionId)).findFirst().orElseThrow().getPerTask());
+        long excluded = list(perTask.get("tasks")).stream().filter(t -> t.has("excluded")).count();
+        assertThat(excluded).isEqualTo(2);
     }
 
     // ---------------------------------------------------------------------------------------------------------------

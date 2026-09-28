@@ -54,5 +54,9 @@ class TrustRulesTest {
         assertThatThrownBy(() -> new TrustRules(List.of(
                 new IndicatorProperties.Rule(null, List.of("pasteRatio > 1"), "no level"))))
                 .isInstanceOf(IllegalArgumentException.class);
+        // a misspelt indicator would never match: it is rejected too
+        assertThatThrownBy(() -> new TrustRules(List.of(
+                new IndicatorProperties.Rule(TrustLevel.RED, List.of("pasteRation > 0.5"), "typo"))))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("pasteRation");
     }
 }

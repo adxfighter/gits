@@ -53,6 +53,9 @@ final class TrustRules {
                 if (!matcher.matches()) {
                     throw new IllegalArgumentException("Malformed trust rule condition: '" + text + "'");
                 }
+                if (!IndicatorCalculator.NAMES.contains(matcher.group(1))) {
+                    throw new IllegalArgumentException("Unknown indicator in trust rule: '" + text + "'");
+                }
                 conditions.add(new Condition(matcher.group(1), matcher.group(2), Double.parseDouble(matcher.group(3))));
             }
             rules.add(new CompiledRule(rule.level(), List.copyOf(conditions), rule.explanation()));

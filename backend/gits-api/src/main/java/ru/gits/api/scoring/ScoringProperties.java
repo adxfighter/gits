@@ -10,5 +10,5 @@ import ru.gits.core.common.Level;
 
 /** Weights of the task levels in the preliminary score (gits.scoring), see docs/indicators.md. */
 @ConfigurationProperties(prefix = "gits.scoring")
-public record ScoringProperties(Map<Level, BigDecimal> weights, Duration checkInterval) {
+public record ScoringProperties(Map<Level, BigDecimal> weights, Duration checkInterval, Duration stuckSubmitAfter) {
 }

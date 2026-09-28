@@ -18,7 +18,7 @@ final class IndicatorTexts {
     }
 
     static Map<String, Entry> of(IndicatorCalculator.TaskIndicators i, Double baseSpeed, TrustRules.Verdict verdict,
-                                 boolean calibration) {
+                                 boolean calibration, IndicatorProperties p) {
         Map<String, Entry> map = new LinkedHashMap<>();
         map.put("pasteRatio", new Entry(i.pasteRatio(),
                 "Доля итогового кода, пришедшая вставкой: " + percent(i.pasteRatio()) + " (" + i.pastedChars()
@@ -32,13 +32,13 @@ final class IndicatorTexts {
                         : "Уход со вкладки или из окна: " + i.focusLossCount() + " раз, всего "
                         + seconds(i.focusLossSeconds()) + "."));
         map.put("burstMax", new Entry(i.burstMax(), "Пиковая скорость набора — " + number(i.burstMax())
-                + " симв./с за 5 с (без вставок и автодополнения)"
-                + (i.burstRelative() == null ? "." : ", в " + number(i.burstRelative())
-                + " раза выше обычной скорости кандидата на разминке (" + number(baseSpeed) + " симв./с).")));
+                + " симв./с за " + seconds(p.burstWindow().toSeconds()) + " (без вставок и автодополнения)"
+                + relative(i.burstRelative(), baseSpeed)));
         map.put("idleThenBurst", new Entry(i.idleThenBurst(), i.idleThenBurst() == 0
                 ? "Эпизодов «долгая пауза, затем быстрый всплеск кода» не было."
-                : "Эпизодов «пауза больше 30 с, затем больше 150 символов за 20 с без вставки»: " + i.idleThenBurst()
-                + "."));
+                : "Эпизодов «пауза больше " + seconds(p.idlePause().toSeconds()) + ", затем больше "
+                + p.idleBurstChars() + " символов за " + seconds(p.idleBurstWindow().toSeconds())
+                + " без вставки»: " + i.idleThenBurst() + "."));
         map.put("linearity", new Entry(i.linearity(), "Доля правок, сделанных в конце набранного текста (набор "
                 + "сверху вниз без возвратов): " + percent(i.linearity()) + "."));
         map.put("editRatio", new Entry(i.editRatio(), "Удалено символов на каждый вставленный: "
@@ -55,6 +55,17 @@ final class IndicatorTexts {
                 ? "Ни одно правило не сработало. Правила экспериментальные (v1.0)."
                 : "Сработавшие правила (экспериментальные, v1.0): " + String.join(" ", reasons)));
         return map;
+    }
+
+    private static String relative(Double ratio, Double baseSpeed) {
+        if (ratio == null) {
+            return ".";
+        }
+        String base = " обычной скорости кандидата на разминке (" + number(baseSpeed) + " симв./с).";
+        if (ratio >= 1.05) {
+            return ", в " + number(ratio) + " раза выше" + base;
+        }
+        return ratio <= 0.95 ? ", ниже" + base : ", на уровне" + base;
     }
 
     private static String percent(double share) {
